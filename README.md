@@ -49,6 +49,23 @@ DATABASE_URL=postgresql://user:password@host/database?sslmode=require
 FHIR_DATA_PATH=./data/import_test
 ```
 
+### Minimal usage
+
+1. Edit `.env` and set `FHIR_DATA_PATH` to your local folder (or a direct download URL).
+2. If `FHIR_DATA_PATH` is a URL, run:
+```bash
+python scripts/download_data.py
+```
+3. Create DB tables (if not already created) and run ETL:
+```bash
+python etl/create_models_tables.py
+python scripts/run_etl.py
+```
+4. Start the API:
+```bash
+uvicorn app.main:app --reload
+```
+
 ### 3. Download/Setup Data
 
 If using OneDrive data:

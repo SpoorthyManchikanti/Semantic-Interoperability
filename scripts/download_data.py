@@ -16,18 +16,14 @@ import sys
 import zipfile
 import shutil
 from pathlib import Path
-from dotenv import load_dotenv
+from app.config import PROJECT_ROOT, FHIR_DATA_RAW, FHIR_FOLDER, FHIR_IS_URL
 
-# Load environment variables
-load_dotenv()
-
-DATA_PATH = os.getenv("FHIR_DATA_PATH", "./data/import_test")
-PROJECT_ROOT = Path(__file__).parent.parent
+DATA_PATH = FHIR_DATA_RAW
 
 
 def is_url(path):
     """Check if path is a URL."""
-    return path.startswith(("http://", "https://"))
+    return isinstance(path, str) and path.startswith(("http://", "https://"))
 
 
 def download_data(url):
@@ -133,7 +129,7 @@ def main():
     
     print(f"\nFHIR_DATA_PATH = {DATA_PATH}")
     
-    if is_url(DATA_PATH):
+    if FHIR_IS_URL:
         success = download_data(DATA_PATH)
     else:
         success = use_local_data(DATA_PATH)

@@ -7,10 +7,10 @@ from dotenv import load_dotenv
 from sqlalchemy import text
 
 from app.database import engine
+from app.config import FHIR_FOLDER, FHIR_IS_URL
 
 load_dotenv()
 
-FHIR_FOLDER = os.getenv("FHIR_DATA_PATH")
 BATCH_SIZE = 100  # Insert every N records
 
 CONDITION_MAPPING = {
@@ -57,16 +57,11 @@ def extract_condition_data(patient_id, resource):
 def extract_observation_data(patient_id, resource):
     """Extract observation data from FHIR resource."""
     observation_name = resource.get("code", {}).get("text", "Unknown")
-    observation_value = None
-    
+    value = None
     if "valueQuantity" in resource:
-        observation_value = str(resource["valueQuantity"].get("value"))
-    
-    return {
-        "patient_id": patient_id,
-        "observation_name": observation_name,
-        "observation_value": observation_value
-    }
+        value = str(resource["valueQuantity"].get("value"))
+
+    return {"patient_id": patient_id, "observation_name": observation_name, "value": value}
 
 
 def extract_medication_data(patient_id, resource):
@@ -103,6 +98,7 @@ def batch_insert_conditions(conn, conditions_batch):
         text("""
         INSERT INTO conditions (patient_id, condition_name)
         VALUES (:patient_id, :condition_name)
+        ON CONFLICT (patient_id, condition_name) DO NOTHING
         """),
         conditions_batch
     )
@@ -115,8 +111,9 @@ def batch_insert_observations(conn, observations_batch):
     
     conn.execute(
         text("""
-        INSERT INTO observations (patient_id, observation_name, observation_value)
-        VALUES (:patient_id, :observation_name, :observation_value)
+        INSERT INTO observations (patient_id, observation_name, value)
+        VALUES (:patient_id, :observation_name, :value)
+        ON CONFLICT (patient_id, observation_name, value) DO NOTHING
         """),
         observations_batch
     )
@@ -131,6 +128,7 @@ def batch_insert_medications(conn, medications_batch):
         text("""
         INSERT INTO medications (patient_id, medication_name)
         VALUES (:patient_id, :medication_name)
+        ON CONFLICT (patient_id, medication_name) DO NOTHING
         """),
         medications_batch
     )
@@ -195,20 +193,38 @@ def process_bundle(file_path):
         batch_insert_medications(conn, medications_batch)
 
 
+def mark_file_ingested(filename):
+    with engine.begin() as conn:
+        conn.execute(text("INSERT INTO ingested_files (filename) VALUES (:fn) ON CONFLICT (filename) DO NOTHING"), {"fn": filename})
+
+
+def is_file_ingested(filename):
+    with engine.connect() as conn:
+        r = conn.execute(text("SELECT 1 FROM ingested_files WHERE filename = :fn LIMIT 1"), {"fn": filename})
+        return r.first() is not None
+
+
 def main():
+    if FHIR_IS_URL:
+        raise Exception("FHIR_DATA_PATH in .env points to a URL — run `python scripts/download_data.py` first to create a local folder.")
+
     if not FHIR_FOLDER:
         raise Exception("FHIR_DATA_PATH missing from .env")
-    
+
     files = list(Path(FHIR_FOLDER).glob("*.json"))
-    
+
     print(f"Found {len(files)} patient files\n")
     
     start_time = time.time()
     
     for file in files:
+        if is_file_ingested(file.name):
+            print(f"→ Skipping already-ingested file: {file.name}")
+            continue
         try:
             file_start = time.time()
             process_bundle(file)
+            mark_file_ingested(file.name)
             file_duration = time.time() - file_start
             print(f"✓ Loaded: {file.name} ({file_duration:.2f}s)")
         except Exception as e:
