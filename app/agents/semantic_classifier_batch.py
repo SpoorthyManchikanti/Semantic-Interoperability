@@ -59,18 +59,18 @@ def update_progress(run_id: int, processed: int, failed: int, prompt_tokens: int
 
 
 def append_error(run_id: int, concept_name: str, source_type: str, error: str):
-    entry = json.dumps({
+    entry = json.dumps([{
         "record": concept_name,
         "source_type": source_type,
         "error": error,
         "timestamp": datetime.utcnow().isoformat()
-    })
+    }])
     with engine.begin() as conn:
         conn.execute(text("""
             UPDATE agent_runs
-            SET error_log = error_log || :entry::jsonb
+            SET error_log = error_log || CAST(:entry AS jsonb)
             WHERE id = :run_id
-        """), {"entry": f"[{entry}]", "run_id": run_id})
+        """), {"entry": entry, "run_id": run_id})
 
 
 def complete_run(run_id: int, processed: int, failed: int, prompt_tokens: int, completion_tokens: int, success: bool):
@@ -97,35 +97,70 @@ def complete_run(run_id: int, processed: int, failed: int, prompt_tokens: int, c
 
 
 # ----------------------------------------------------------------
-# Step 1: Fetch all unique concepts from source tables
+# Step 1: Fetch only unprocessed concepts with vocabulary codes
 # ----------------------------------------------------------------
 
-def fetch_unique_concepts() -> list[dict]:
+def fetch_pending_concepts() -> list[dict]:
     """
-    Returns a deduplicated list of {concept_name, source_type}
-    across conditions, medications, and observations.
-    One entry per unique (concept_name, source_type) pair.
+    Returns concepts not yet completed in processing_status,
+    along with their vocabulary codes from source tables.
     """
     with engine.connect() as conn:
         rows = conn.execute(text("""
-            SELECT DISTINCT condition_name AS concept_name, 'condition' AS source_type FROM conditions
-            UNION
-            SELECT DISTINCT medication_name, 'medication' FROM medications
-            UNION
-            SELECT DISTINCT observation_name, 'observation' FROM observations
+            SELECT
+                concept_name,
+                source_type,
+                CASE source_type
+                    WHEN 'condition'   THEN (SELECT snomed_code FROM conditions  WHERE condition_name  = concept_name LIMIT 1)
+                    WHEN 'medication'  THEN (SELECT rxnorm_code  FROM medications WHERE medication_name  = concept_name LIMIT 1)
+                    WHEN 'observation' THEN (SELECT loinc_code   FROM observations WHERE observation_name = concept_name LIMIT 1)
+                END as vocabulary_code,
+                CASE source_type
+                    WHEN 'condition'   THEN 'SNOMED'
+                    WHEN 'medication'  THEN 'RxNorm'
+                    WHEN 'observation' THEN 'LOINC'
+                END as vocabulary_id
+            FROM (
+                SELECT DISTINCT condition_name AS concept_name, 'condition' AS source_type FROM conditions
+                UNION
+                SELECT DISTINCT medication_name, 'medication' FROM medications
+                UNION
+                SELECT DISTINCT observation_name, 'observation' FROM observations
+            ) all_concepts
+            WHERE (concept_name, source_type) NOT IN (
+                SELECT concept_name, source_type FROM processing_status
+                WHERE agent_1_status = 'completed'
+            )
             ORDER BY source_type, concept_name
         """)).fetchall()
-    return [{"concept_name": row[0], "source_type": row[1]} for row in rows]
+    return [
+        {
+            "concept_name":   row[0],
+            "source_type":    row[1],
+            "vocabulary_code": row[2],
+            "vocabulary_id":   row[3]
+        }
+        for row in rows
+    ]
 
 
 # ----------------------------------------------------------------
 # Step 2: Classify and write each unique concept
 # ----------------------------------------------------------------
 
-def write_concept(concept_name: str, source_type: str, result: dict) -> str:
+def write_concept(
+    concept_name: str,
+    source_type: str,
+    result: dict,
+    vocabulary_code: str = None,
+    vocabulary_id: str = None
+) -> str:
     """
-    Upsert into concepts table. Returns the concept_id.
+    Upsert into concepts table with vocabulary codes.
+    Write processing_status row. Returns the concept_id.
     """
+    needs_review = result["confidence"] < 0.95
+
     with engine.begin() as conn:
         existing = conn.execute(text("""
             SELECT concept_id FROM concepts
@@ -136,34 +171,65 @@ def write_concept(concept_name: str, source_type: str, result: dict) -> str:
             concept_id = existing[0]
             conn.execute(text("""
                 UPDATE concepts
-                SET category = :category,
-                    subcategory = :subcategory,
-                    confidence = :confidence,
-                    updated_at = NOW()
+                SET category        = :category,
+                    subcategory     = :subcategory,
+                    confidence      = :confidence,
+                    needs_review    = :needs_review,
+                    vocabulary_code = :vocabulary_code,
+                    vocabulary_id   = :vocabulary_id,
+                    updated_at      = NOW()
                 WHERE concept_id = :concept_id
             """), {
-                "category": result["category"],
-                "subcategory": result["subcategory"],
-                "confidence": result["confidence"],
-                "concept_id": concept_id
+                "category":        result["category"],
+                "subcategory":     result["subcategory"],
+                "confidence":      result["confidence"],
+                "needs_review":    needs_review,
+                "vocabulary_code": vocabulary_code,
+                "vocabulary_id":   vocabulary_id,
+                "concept_id":      concept_id
             })
         else:
             concept_id = str(uuid.uuid4())
             conn.execute(text("""
                 INSERT INTO concepts
-                    (concept_id, concept_name, source_type, category, subcategory, confidence)
+                    (concept_id, concept_name, source_type, category, subcategory,
+                     confidence, needs_review, vocabulary_code, vocabulary_id)
                 VALUES
-                    (:concept_id, :concept_name, :source_type, :category, :subcategory, :confidence)
+                    (:concept_id, :concept_name, :source_type, :category, :subcategory,
+                     :confidence, :needs_review, :vocabulary_code, :vocabulary_id)
             """), {
-                "concept_id": concept_id,
-                "concept_name": concept_name,
-                "source_type": source_type,
-                "category": result["category"],
-                "subcategory": result["subcategory"],
-                "confidence": result["confidence"]
+                "concept_id":      concept_id,
+                "concept_name":    concept_name,
+                "source_type":     source_type,
+                "category":        result["category"],
+                "subcategory":     result["subcategory"],
+                "confidence":      result["confidence"],
+                "needs_review":    needs_review,
+                "vocabulary_code": vocabulary_code,
+                "vocabulary_id":   vocabulary_id
             })
 
+        conn.execute(text("""
+            INSERT INTO processing_status (concept_id, concept_name, source_type, agent_1_status)
+            VALUES (:concept_id, :concept_name, :source_type, 'completed')
+            ON CONFLICT DO NOTHING
+        """), {
+            "concept_id":   concept_id,
+            "concept_name": concept_name,
+            "source_type":  source_type
+        })
+
     return concept_id
+
+
+def mark_failed(concept_name: str, source_type: str):
+    """Mark a concept as failed in processing_status so it gets retried next run."""
+    with engine.begin() as conn:
+        conn.execute(text("""
+            INSERT INTO processing_status (concept_id, concept_name, source_type, agent_1_status)
+            VALUES (NULL, :concept_name, :source_type, 'failed')
+            ON CONFLICT DO NOTHING
+        """), {"concept_name": concept_name, "source_type": source_type})
 
 
 # ----------------------------------------------------------------
@@ -179,7 +245,6 @@ def write_patient_linkages():
     log.info("Writing patient linkages...")
 
     with engine.begin() as conn:
-        # Conditions
         conn.execute(text("""
             INSERT INTO patient_concepts (patient_id, concept_id, source_id, source_type)
             SELECT c.patient_id, con.concept_id, c.id, 'condition'
@@ -190,7 +255,6 @@ def write_patient_linkages():
             ON CONFLICT (patient_id, concept_id) DO NOTHING
         """))
 
-        # Medications
         conn.execute(text("""
             INSERT INTO patient_concepts (patient_id, concept_id, source_id, source_type)
             SELECT m.patient_id, con.concept_id, m.id, 'medication'
@@ -201,7 +265,6 @@ def write_patient_linkages():
             ON CONFLICT (patient_id, concept_id) DO NOTHING
         """))
 
-        # Observations
         conn.execute(text("""
             INSERT INTO patient_concepts (patient_id, concept_id, source_id, source_type)
             SELECT o.patient_id, con.concept_id, o.id, 'observation'
@@ -214,13 +277,18 @@ def write_patient_linkages():
 
     log.info("Patient linkages written.")
 
-if __name__ == "__main__":
-    log.info("Starting optimized semantic classifier batch run...")
 
-    # Fetch all unique concepts upfront
-    unique_concepts = fetch_unique_concepts()
-    total = len(unique_concepts)
-    log.info(f"Found {total} unique concepts to classify.")
+if __name__ == "__main__":
+    log.info("Starting semantic classifier batch run...")
+
+    pending_concepts = fetch_pending_concepts()
+    total = len(pending_concepts)
+
+    if total == 0:
+        log.info("No new concepts to classify. Exiting.")
+        exit(0)
+
+    log.info(f"Found {total} new concepts to classify.")
 
     categories = fetch_categories()
     log.info(f"Loaded {len(categories)} categories: {categories}")
@@ -229,32 +297,58 @@ if __name__ == "__main__":
     counters = {"processed": 0, "failed": 0, "prompt_tokens": 0, "completion_tokens": 0}
 
     try:
-        # Step 2: classify each unique concept — one API call each
-        for i, item in enumerate(unique_concepts):
-            concept_name = item["concept_name"]
-            source_type = item["source_type"]
+        for i, item in enumerate(pending_concepts):
+            concept_name    = item["concept_name"]
+            source_type     = item["source_type"]
+            vocabulary_code = item["vocabulary_code"]
+            vocabulary_id   = item["vocabulary_id"]
+
             try:
-                result = classify_concept(concept_name, categories)
-                write_concept(concept_name, source_type, result)
+                result = classify_concept(concept_name, categories, source_type)
+                write_concept(concept_name, source_type, result, vocabulary_code, vocabulary_id)
                 counters["processed"] += 1
-                counters["prompt_tokens"] += result.get("prompt_tokens", 0)
+                counters["prompt_tokens"]     += result.get("prompt_tokens", 0)
                 counters["completion_tokens"] += result.get("completion_tokens", 0)
-                log.info(f"  [{source_type}] {concept_name} → {result['category']} ({result['confidence']}) | tokens: {result.get('prompt_tokens', 0)}p {result.get('completion_tokens', 0)}c")
+                log.info(
+                    f"  [{source_type}] {concept_name} → "
+                    f"{result['category']} / {result['subcategory']} "
+                    f"({result['confidence']}) | vocab={vocabulary_code} | "
+                    f"tokens: {result.get('prompt_tokens', 0)}p {result.get('completion_tokens', 0)}c"
+                )
             except Exception as e:
                 counters["failed"] += 1
                 error_msg = str(e)
                 log.error(f"  [{source_type}] Failed for '{concept_name}': {error_msg}")
                 append_error(run_id, concept_name, source_type, error_msg)
+                mark_failed(concept_name, source_type)
 
-            # Update progress every 10 records
             if (i + 1) % 10 == 0:
-                update_progress(run_id, counters["processed"], counters["failed"], counters["prompt_tokens"], counters["completion_tokens"])
+                update_progress(
+                    run_id,
+                    counters["processed"],
+                    counters["failed"],
+                    counters["prompt_tokens"],
+                    counters["completion_tokens"]
+                )
 
-        # Step 3: bulk write all patient linkages — no API calls
         write_patient_linkages()
 
-        complete_run(run_id, counters["processed"], counters["failed"], counters["prompt_tokens"], counters["completion_tokens"], success=True)
+        complete_run(
+            run_id,
+            counters["processed"],
+            counters["failed"],
+            counters["prompt_tokens"],
+            counters["completion_tokens"],
+            success=True
+        )
 
     except Exception as e:
         log.error(f"Batch run failed unexpectedly: {e}")
-        complete_run(run_id, counters["processed"], counters["failed"], counters["prompt_tokens"], counters["completion_tokens"], success=False)
+        complete_run(
+            run_id,
+            counters["processed"],
+            counters["failed"],
+            counters["prompt_tokens"],
+            counters["completion_tokens"],
+            success=False
+        )
