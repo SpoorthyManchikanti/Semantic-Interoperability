@@ -1,8 +1,12 @@
+import sys
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+
 import os
 import json
 import time
 
-from pathlib import Path
 from dotenv import load_dotenv
 from sqlalchemy import text
 
@@ -11,7 +15,7 @@ from app.config import FHIR_FOLDER, FHIR_IS_URL
 
 load_dotenv()
 
-BATCH_SIZE = 100  # Insert every N records
+BATCH_SIZE = 100
 
 CONDITION_MAPPING = {
     "Type II Diabetes": "Diabetes",
@@ -19,13 +23,33 @@ CONDITION_MAPPING = {
     "Diabetes Mellitus": "Diabetes"
 }
 
+VOCABULARY_MAP = {
+    "http://snomed.info/sct":                      "SNOMED",
+    "http://www.nlm.nih.gov/research/umls/rxnorm": "RxNorm",
+    "http://loinc.org":                            "LOINC",
+}
+
 
 def normalize_condition(condition):
     return CONDITION_MAPPING.get(condition, condition)
 
 
+def extract_code(resource: dict, field: str = "code") -> tuple:
+    """
+    Extract (code, vocabulary_id) from a FHIR CodeableConcept field.
+    Returns (None, None) if not found.
+    """
+    codings = resource.get(field, {}).get("coding", [])
+    for coding in codings:
+        system = coding.get("system", "")
+        vocab = VOCABULARY_MAP.get(system)
+        code = coding.get("code")
+        if vocab and code:
+            return code, vocab
+    return None, None
+
+
 def extract_patient_data(resource):
-    """Extract patient data from FHIR resource."""
     patient_id = resource["id"]
     first_name = None
     last_name = None
@@ -44,46 +68,46 @@ def extract_patient_data(resource):
 
 
 def extract_condition_data(patient_id, resource):
-    """Extract condition data from FHIR resource."""
     condition_name = resource.get("code", {}).get("text", "Unknown")
     condition_name = normalize_condition(condition_name)
+    snomed_code, _ = extract_code(resource, "code")
 
     return {
         "patient_id": patient_id,
-        "condition_name": condition_name
+        "condition_name": condition_name,
+        "snomed_code": snomed_code
     }
 
 
 def extract_observation_data(patient_id, resource):
-    """Extract observation data from FHIR resource."""
     observation_name = resource.get("code", {}).get("text", "Unknown")
     value = None
     if "valueQuantity" in resource:
         value = str(resource["valueQuantity"].get("value"))
+    loinc_code, _ = extract_code(resource, "code")
 
-    # FIX: use observation_value to match the actual DB column name
     return {
         "patient_id": patient_id,
         "observation_name": observation_name,
-        "observation_value": value
+        "observation_value": value,
+        "loinc_code": loinc_code
     }
 
 
 def extract_medication_data(patient_id, resource):
-    """Extract medication data from FHIR resource."""
     medication_name = resource.get("medicationCodeableConcept", {}).get("text", "Unknown")
+    rxnorm_code, _ = extract_code(resource, "medicationCodeableConcept")
 
     return {
         "patient_id": patient_id,
-        "medication_name": medication_name
+        "medication_name": medication_name,
+        "rxnorm_code": rxnorm_code
     }
 
 
 def batch_insert_patients(conn, patients_batch):
-    """Batch insert patients using executemany."""
     if not patients_batch:
         return
-
     conn.execute(
         text("""
         INSERT INTO patients (patient_id, first_name, last_name, gender, birth_date)
@@ -95,53 +119,48 @@ def batch_insert_patients(conn, patients_batch):
 
 
 def batch_insert_conditions(conn, conditions_batch):
-    """Batch insert conditions."""
     if not conditions_batch:
         return
-
     conn.execute(
         text("""
-        INSERT INTO conditions (patient_id, condition_name)
-        VALUES (:patient_id, :condition_name)
-        ON CONFLICT (patient_id, condition_name) DO NOTHING
+        INSERT INTO conditions (patient_id, condition_name, snomed_code)
+        VALUES (:patient_id, :condition_name, :snomed_code)
+        ON CONFLICT (patient_id, condition_name)
+        DO UPDATE SET snomed_code = EXCLUDED.snomed_code
         """),
         conditions_batch
     )
 
 
 def batch_insert_observations(conn, observations_batch):
-    """Batch insert observations."""
     if not observations_batch:
         return
-
-    # FIX: use observation_value to match the actual DB column name
     conn.execute(
         text("""
-        INSERT INTO observations (patient_id, observation_name, observation_value)
-        VALUES (:patient_id, :observation_name, :observation_value)
-        ON CONFLICT (patient_id, observation_name, observation_value) DO NOTHING
+        INSERT INTO observations (patient_id, observation_name, observation_value, loinc_code)
+        VALUES (:patient_id, :observation_name, :observation_value, :loinc_code)
+        ON CONFLICT (patient_id, observation_name, observation_value)
+        DO UPDATE SET loinc_code = EXCLUDED.loinc_code
         """),
         observations_batch
     )
 
 
 def batch_insert_medications(conn, medications_batch):
-    """Batch insert medications."""
     if not medications_batch:
         return
-
     conn.execute(
         text("""
-        INSERT INTO medications (patient_id, medication_name)
-        VALUES (:patient_id, :medication_name)
-        ON CONFLICT (patient_id, medication_name) DO NOTHING
+        INSERT INTO medications (patient_id, medication_name, rxnorm_code)
+        VALUES (:patient_id, :medication_name, :rxnorm_code)
+        ON CONFLICT (patient_id, medication_name)
+        DO UPDATE SET rxnorm_code = EXCLUDED.rxnorm_code
         """),
         medications_batch
     )
 
 
 def process_bundle(file_path):
-    """Process FHIR bundle file with batch inserts."""
     with open(file_path, "r", encoding="utf-8") as f:
         bundle = json.load(f)
 
@@ -190,7 +209,6 @@ def process_bundle(file_path):
                     batch_insert_medications(conn, medications_batch)
                     medications_batch = []
 
-        # Insert remaining records
         batch_insert_patients(conn, patients_batch)
         batch_insert_conditions(conn, conditions_batch)
         batch_insert_observations(conn, observations_batch)
@@ -216,13 +234,12 @@ def is_file_ingested(filename):
 
 def main():
     if FHIR_IS_URL:
-        raise Exception("FHIR_DATA_PATH in .env points to a URL — run `python scripts/download_data.py` first to create a local folder.")
+        raise Exception("FHIR_DATA_PATH in .env points to a URL — run `python scripts/download_data.py` first.")
 
     if not FHIR_FOLDER:
         raise Exception("FHIR_DATA_PATH missing from .env")
 
     files = list(Path(FHIR_FOLDER).glob("*.json"))
-
     print(f"Found {len(files)} patient files\n")
 
     start_time = time.time()
