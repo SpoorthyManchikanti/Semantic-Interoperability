@@ -1,0 +1,229 @@
+.patient-detail .dashboard { max-width: none; }
+
+/* ── Tab bar ── */
+
+.tab-bar {
+  display: flex;
+  gap: 4px;
+  border-bottom: 1px solid var(--rule);
+  margin-bottom: 24px;
+  overflow-x: auto;
+}
+
+.tab-item {
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  padding: 10px 14px;
+  font-size: 13px;
+  font-family: var(--sans);
+  color: var(--text);
+  cursor: pointer;
+  white-space: nowrap;
+  transition: color 0.12s, border-color 0.12s;
+}
+
+.tab-item:hover { color: var(--text-h); }
+
+.tab-item.active {
+  color: var(--text-h);
+  font-weight: 500;
+  border-bottom-color: var(--accent);
+}
+
+/* ── Overview ── */
+
+.overview-tab {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 48px;
+}
+
+.overview-tab .error-box {
+  grid-column: 1 / -1;
+}
+
+/* ── Semantic profile ── */
+
+.semantic-profile-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 16px;
+}
+
+.semantic-card {
+  border: 1px solid var(--rule-light);
+  border-radius: 6px;
+  padding: 14px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  background: var(--surface);
+  min-width: 0;
+  overflow-wrap: break-word;
+}
+
+.semantic-card-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.semantic-card-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+
+.status-badge {
+  padding: 1px 6px;
+  border-radius: 2px;
+  text-transform: capitalize;
+}
+.status-mapped { color: var(--success); background: transparent; }
+.status-flagged { color: var(--warning); background: transparent; }
+
+.related-concepts {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding-top: 6px;
+  border-top: 1px solid var(--rule-light);
+}
+
+.related-label {
+  font-size: 10.5px;
+  color: var(--text);
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+}
+
+.related-chips {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 5px;
+}
+
+.related-chips .subcat-badge {
+  white-space: normal;
+  text-align: left;
+  max-width: 100%;
+}
+
+.view-ontology-btn {
+  align-self: flex-start;
+  background: none;
+  border: none;
+  color: var(--accent);
+  font-size: 12px;
+  font-family: var(--sans);
+  cursor: pointer;
+  padding: 0;
+  margin-top: 2px;
+}
+.view-ontology-btn:hover { text-decoration: underline; }
+
+/* ── Ontology / graph ── */
+
+.ontology-caption {
+  font-size: 12.5px;
+  color: var(--text);
+  line-height: 1.6;
+  max-width: 720px;
+  margin: 0 0 16px;
+}
+
+.ontology-legend {
+  display: flex;
+  gap: 16px;
+  font-size: 12px;
+  color: var(--text);
+  margin-bottom: 12px;
+}
+
+.ontology-legend span { display: inline-flex; align-items: center; gap: 6px; }
+.ontology-legend i { width: 8px; height: 8px; border-radius: 50%; display: inline-block; }
+
+.ontology-graph {
+  border: 1px solid var(--rule);
+  border-radius: 6px;
+  overflow: hidden;
+  background: var(--surface);
+}
+
+/* ── Timeline ── */
+
+.timeline {
+  display: flex;
+  flex-direction: column;
+}
+
+.timeline-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+  padding: 10px 0;
+  border-left: 1px solid var(--rule);
+  padding-left: 16px;
+  position: relative;
+}
+
+.timeline-dot {
+  position: absolute;
+  left: -4.5px;
+  top: 14px;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--accent);
+}
+
+.timeline-date {
+  font-family: var(--mono);
+  font-size: 10.5px;
+  color: var(--text);
+  min-width: 150px;
+  flex-shrink: 0;
+  padding-top: 2px;
+}
+
+.timeline-content {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+/* ── AI summary ── */
+
+.ai-summary { max-width: 720px; }
+
+.ai-summary-confidence { margin-bottom: 12px; }
+
+.ai-summary-text {
+  font-size: 13.5px;
+  line-height: 1.75;
+  color: var(--text-h);
+}
+
+.ai-summary-skeleton { max-width: 720px; }
+
+.skeleton-line {
+  height: 12px;
+  border-radius: 3px;
+  background: var(--rule-light);
+  margin-bottom: 10px;
+  animation: pulse 1.2s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.4; }
+}
+
+@media (max-width: 640px) {
+  .overview-tab { grid-template-columns: 1fr; gap: 28px; }
+}

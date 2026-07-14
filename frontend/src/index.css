@@ -12,6 +12,12 @@
   --rule-light:  #EDEBE3;
   --surface:     #F2F0EB;
 
+  /* ── Status roles (restrained — reuse palette hues, one true red for critical) ── */
+  --success: var(--teal);
+  --warning: var(--brass);
+  --critical: #A2493D;
+  --info: var(--accent);
+
   /* ── Typography ── */
   --sans:    'Inter', system-ui, -apple-system, sans-serif;
   --mono:    'IBM Plex Mono', ui-monospace, Consolas, monospace;
@@ -25,6 +31,24 @@
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   font-feature-settings: "kern" 1, "liga" 1, "tnum" 1;
+  transition: background 0.15s, color 0.15s;
+}
+
+:root[data-theme="dark"] {
+  --bg:          #1B1D22;
+  --text:        #9497A0;
+  --text-h:      #EDEEF0;
+  --accent:      #6C82AD;
+  --teal:        #7FA3AC;
+  --brass:       #C9A26D;
+  --rule:        #33363E;
+  --rule-light:  #2A2C33;
+  --surface:     #232630;
+
+  --success: var(--teal);
+  --warning: var(--brass);
+  --critical: #C97165;
+  --info: var(--accent);
 }
 
 body { margin: 0; }

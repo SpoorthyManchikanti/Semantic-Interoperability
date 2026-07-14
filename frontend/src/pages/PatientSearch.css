@@ -1,0 +1,20 @@
+.patient-search-page {
+  max-width: 640px;
+}
+
+.patient-result-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: 9px 0;
+  border: none;
+  border-bottom: 1px solid var(--rule-light);
+  background: none;
+  cursor: pointer;
+  text-align: left;
+  font-family: var(--sans);
+}
+
+.patient-result-row:hover .item-name { color: var(--accent); }
+.patient-result-row .code-inline { margin-left: auto; }
