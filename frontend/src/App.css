@@ -1,0 +1,704 @@
+/* ───────────────────────────────────────────
+   Data source badge
+─────────────────────────────────────────── */
+
+.data-source-badge {
+  display: inline-block;
+  font-size: 11px;
+  color: var(--text);
+  background: var(--surface);
+  border: 1px solid var(--rule);
+  border-radius: 3px;
+  padding: 3px 8px;
+  margin-top: 4px;
+}
+
+/* ───────────────────────────────────────────
+   Shared page header
+─────────────────────────────────────────── */
+
+.page-title {
+  font-size: 18px;
+  font-weight: 500;
+  margin: 0 0 6px;
+}
+
+.page-subtitle {
+  font-size: 13px;
+  color: var(--text);
+  margin: 0 0 24px;
+  max-width: 640px;
+  line-height: 1.6;
+}
+
+/* ───────────────────────────────────────────
+   Search
+─────────────────────────────────────────── */
+
+.search-section {
+  margin-bottom: 44px;
+}
+
+.search-bar {
+  display: flex;
+  gap: 8px;
+  max-width: 420px;
+}
+
+.search-input {
+  flex: 1;
+  padding: 8px 12px;
+  border: 1px solid var(--rule);
+  border-radius: 3px;
+  font-size: 14px;
+  font-family: var(--sans);
+  color: var(--text-h);
+  background: var(--bg);
+  transition: border-color 0.15s;
+  outline: none;
+}
+
+.search-input::placeholder {
+  color: var(--text);
+  opacity: 0.65;
+}
+.search-input:focus {
+  border-color: var(--accent);
+}
+.search-input:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.search-btn {
+  padding: 8px 18px;
+  background: var(--accent);
+  color: #fff;
+  border: none;
+  border-radius: 3px;
+  font-size: 13px;
+  font-family: var(--sans);
+  font-weight: 500;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 76px;
+  transition: opacity 0.15s;
+  letter-spacing: 0.1px;
+}
+.search-btn:hover:not(:disabled) { opacity: 0.82; }
+.search-btn:active:not(:disabled) { opacity: 0.72; }
+.search-btn:disabled { opacity: 0.38; cursor: not-allowed; }
+
+.search-hint {
+  font-size: 12px;
+  color: var(--text);
+  margin: 8px 0 0;
+}
+
+kbd {
+  font-family: var(--mono);
+  font-size: 11px;
+  background: var(--surface);
+  border: 1px solid var(--rule);
+  border-radius: 2px;
+  padding: 0 4px;
+  color: var(--text);
+}
+
+/* ───────────────────────────────────────────
+   Spinner
+─────────────────────────────────────────── */
+
+.spinner {
+  width: 14px;
+  height: 14px;
+  border: 1.5px solid rgba(255, 255, 255, 0.35);
+  border-top-color: #fff;
+  border-radius: 50%;
+  animation: spin 0.65s linear infinite;
+  display: inline-block;
+}
+
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* ───────────────────────────────────────────
+   Error / warning state
+   Role: brass (#B08D57) — flagged / unresolved
+─────────────────────────────────────────── */
+
+.error-box {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  border-left: 2px solid var(--brass);
+  padding: 8px 14px;
+  margin-bottom: 28px;
+  font-size: 13px;
+  color: var(--text-h);
+  background: rgba(176, 141, 87, 0.05);
+}
+
+.error-icon {
+  color: var(--brass);
+  flex-shrink: 0;
+  font-size: 13px;
+  margin-top: 1px;
+}
+
+.error-msg { flex: 1; }
+
+.dismiss-btn {
+  background: none;
+  border: none;
+  color: var(--text);
+  cursor: pointer;
+  font-size: 12px;
+  padding: 0;
+  opacity: 0.55;
+  transition: opacity 0.15s;
+  margin-left: auto;
+  flex-shrink: 0;
+  line-height: 1;
+}
+.dismiss-btn:hover { opacity: 1; }
+
+/* ───────────────────────────────────────────
+   Empty / welcome state
+─────────────────────────────────────────── */
+
+.empty-state {
+  margin-top: 16px;  /* small gap below search-section; centering provides the rest */
+  color: var(--text);
+  padding-bottom: 8px;
+}
+
+/* hide emoji — not appropriate for a consulting-review context */
+.empty-icon { display: none; }
+
+.empty-state h2 {
+  font-size: 15px !important;
+  font-weight: 500 !important;
+  margin: 0 0 8px !important;
+  color: var(--text-h) !important;
+}
+
+.empty-state p {
+  font-size: 13px;
+  max-width: 400px;
+  line-height: 1.65;
+  color: var(--text);
+}
+
+/* ───────────────────────────────────────────
+   System status strip (below empty-state copy)
+─────────────────────────────────────────── */
+
+.status-strip {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0;
+  margin-top: 20px;
+  padding-top: 16px;
+  border-top: 1px solid var(--rule-light);
+  font-size: 12px;
+  color: var(--text);
+}
+
+.status-item {
+  display: inline-flex;
+  align-items: center;
+}
+
+.status-item + .status-item::before {
+  content: '·';
+  margin: 0 9px;
+  color: var(--rule);
+  font-size: 15px;
+  line-height: 1;
+}
+
+.status-value {
+  color: var(--teal);
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+  margin-right: 4px;
+}
+
+/* ───────────────────────────────────────────
+   Patient header
+   No card — just whitespace + hairline rule below
+─────────────────────────────────────────── */
+
+.patient-card {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+  padding-bottom: 28px;
+  margin-bottom: 36px;
+  border-bottom: 1px solid var(--rule);
+  position: relative;
+}
+
+.avatar {
+  width: 36px;
+  height: 36px;
+  border-radius: 3px;
+  background: var(--accent);
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 500;
+  font-size: 13px;
+  flex-shrink: 0;
+  letter-spacing: 0.3px;
+  margin-top: 2px;
+  font-family: var(--sans);
+}
+
+.patient-info { flex: 1; min-width: 0; }
+
+.patient-name {
+  font-size: 18px !important;
+  font-weight: 500 !important;
+  color: var(--text-h) !important;
+  margin: 0 0 10px !important;
+  letter-spacing: -0.2px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Meta: plain inline tokens separated by middots */
+.patient-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0;
+  font-size: 12px;
+  color: var(--text);
+}
+
+.meta-chip {
+  font-size: 12px;
+  color: var(--text);
+  font-weight: 400;
+  display: inline-flex;
+  align-items: center;
+}
+
+.meta-chip + .meta-chip::before {
+  content: '·';
+  margin: 0 7px;
+  color: var(--rule);
+  font-size: 14px;
+  line-height: 1;
+}
+
+.capitalize { text-transform: capitalize; }
+.mono { font-family: var(--mono); font-size: 11px; }
+
+.close-btn {
+  position: absolute;
+  top: 0;
+  right: 0;
+  background: none;
+  border: none;
+  font-size: 13px;
+  color: var(--text);
+  cursor: pointer;
+  padding: 3px 5px;
+  border-radius: 2px;
+  opacity: 0.45;
+  transition: opacity 0.15s;
+  line-height: 1;
+}
+.close-btn:hover { opacity: 0.9; }
+
+/* Patient header: fade-in from top on load */
+.patient-card-anim {
+  animation: fadeInDown 0.2s ease-out;
+}
+
+@keyframes fadeInDown {
+  from { opacity: 0; transform: translateY(-6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.patient-encounter {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 2px;
+  margin-left: auto;
+  margin-right: 28px;
+  flex-shrink: 0;
+}
+
+.encounter-label {
+  font-size: 11px;
+  color: var(--text);
+}
+
+.encounter-date {
+  font-size: 13px;
+  color: var(--text-h);
+  font-weight: 500;
+}
+
+/* ───────────────────────────────────────────
+   Stat row — four metric tiles
+─────────────────────────────────────────── */
+
+.stat-row {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 1px;
+  margin-bottom: 40px;
+  background: var(--rule-light);
+}
+
+.stat-tile {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 28px;
+  background: var(--surface);
+}
+
+.stat-label {
+  font-size: 12px;
+  color: var(--text);
+  text-transform: none;
+}
+
+.stat-value {
+  font-size: 36px;
+  font-weight: 600;
+  color: var(--text-h);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.5px;
+}
+
+/* ───────────────────────────────────────────
+   Data grid — conditions + medications side by side
+─────────────────────────────────────────── */
+
+.data-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 48px;
+  margin-bottom: 40px;
+}
+
+/* ───────────────────────────────────────────
+   Data sections
+   No card borders — separated by whitespace and hairlines
+─────────────────────────────────────────── */
+
+.data-section {
+  /* intentionally no border, background, or shadow */
+}
+
+.data-section.full-width {
+  padding-top: 28px;
+  margin-bottom: 28px;
+  border-top: 1px solid var(--rule);
+}
+
+.section-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding-bottom: 10px;
+  margin-bottom: 2px;
+  border-bottom: 1px solid var(--rule-light);
+}
+
+/* hide emoji section icons */
+.sec-icon { display: none; }
+
+.section-head h3 {
+  margin: 0;
+  font-size: 11px;
+  font-weight: 500;
+  text-transform: none;
+  letter-spacing: 0;
+  color: var(--text);
+  flex: 1;
+}
+
+.count-chip {
+  font-size: 11px;
+  font-weight: 400;
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Remove the colored top-border accents on section heads */
+.cond-head,
+.med-head,
+.obs-head,
+.rel-head {
+  /* no colored top border */
+}
+
+/* ───────────────────────────────────────────
+   Item rows
+   No individual cards — rows with hairline dividers
+─────────────────────────────────────────── */
+
+.item-list {
+  display: flex;
+  flex-direction: column;
+}
+
+.item-card {
+  padding: 9px 0;
+  border-bottom: 1px solid var(--rule-light);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.item-card:last-child { border-bottom: none; }
+
+/* Remove individual card backgrounds/borders */
+.condition-card,
+.medication-card,
+.observation-card {
+  background: none;
+  border: none;
+  border-radius: 0;
+  border-bottom: 1px solid var(--rule-light);
+}
+
+.condition-card:last-child,
+.medication-card:last-child,
+.observation-card:last-child {
+  border-bottom: none;
+}
+
+.item-name {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-h);
+}
+
+.item-name { display: flex; align-items: center; gap: 8px; }
+.item-name .name-text { display: inline-block; }
+.code-inline {
+  font-family: var(--mono);
+  font-size: 8px; /* slightly smaller than the 13px name */
+  color: var(--text);
+  opacity: 0.75;
+  font-weight: 400;
+  transform: translateY(1px);
+}
+
+.item-badges {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+
+/* ───────────────────────────────────────────
+   Badges
+─────────────────────────────────────────── */
+
+.badge {
+  font-size: 11px;
+  font-weight: 400;
+  white-space: nowrap;
+}
+
+.cat-badge {
+  display: inline-block;
+  padding: 1px 5px;
+  border-radius: 2px;
+  background: var(--surface);
+  color: var(--text);
+}
+
+.subcat-badge {
+  display: inline-block;
+  padding: 1px 5px;
+  border-radius: 2px;
+  background: var(--surface);
+  color: var(--text);
+  opacity: 0.75;
+}
+
+/* Code identifiers: mono, no background box */
+.code-badge {
+  font-family: var(--mono);
+  font-size: 10px;
+  font-weight: 400;
+  color: var(--text);
+  background: transparent;
+  padding: 0;
+}
+
+/* Confidence: teal — success/complete role */
+.conf-badge {
+  color: var(--teal);
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+  background: transparent;
+  padding: 0;
+}
+
+.value-badge {
+  display: inline-block;
+  padding: 1px 5px;
+  border-radius: 2px;
+  background: var(--surface);
+  color: var(--text);
+}
+
+/* ───────────────────────────────────────────
+   Observations grid
+─────────────────────────────────────────── */
+
+.obs-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 0 24px;  /* row gap via border-bottom; column gap via spacing */
+}
+
+/* ───────────────────────────────────────────
+   Empty list state
+─────────────────────────────────────────── */
+
+.no-data {
+  font-size: 12px;
+  color: var(--text);
+  padding: 12px 0;
+  font-style: italic;
+  margin: 0 !important;
+  opacity: 0.7;
+}
+
+/* ───────────────────────────────────────────
+   Semantic relationships
+─────────────────────────────────────────── */
+
+.rel-list {
+  display: flex;
+  flex-direction: column;
+}
+
+.rel-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  padding: 9px 0;
+  border-bottom: 1px solid var(--rule-light);
+}
+
+.rel-row:last-child { border-bottom: none; }
+
+/* All relationship nodes: plain text, no pill shapes */
+.rel-node {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-h);
+  padding: 0;
+  background: none;
+  border: none;
+  border-radius: 0;
+}
+
+/* Remove all color variants — the rel-blue/green/purple/amber classes
+   are still rendered by JSX but have no visual effect here */
+.rel-blue   .rel-node,
+.rel-green  .rel-node,
+.rel-purple .rel-node,
+.rel-amber  .rel-node {
+  background: none;
+  border: none;
+  color: var(--text-h);
+}
+
+.rel-connector {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: 1;
+  min-width: 0;
+  color: var(--text);
+}
+
+.rel-line {
+  display: inline-block;
+  height: 1px;
+  background: var(--rule);
+  flex: 1;
+  min-width: 12px;
+}
+
+/* Relationship label: mono, sentence case, no background box */
+.rel-label {
+  font-family: var(--mono);
+  font-size: 10px;
+  font-weight: 400;
+  text-transform: none;
+  letter-spacing: 0;
+  background: transparent;
+  padding: 0;
+  color: var(--text);
+  white-space: nowrap;
+}
+
+.rel-arrow {
+  font-size: 13px;
+  color: var(--accent);
+  flex-shrink: 0;
+}
+
+/* ───────────────────────────────────────────
+   Responsive
+─────────────────────────────────────────── */
+
+@media (max-width: 640px) {
+  .data-grid   { grid-template-columns: 1fr; gap: 32px; }
+  .patient-card { flex-wrap: wrap; }
+  .obs-grid    { grid-template-columns: 1fr; }
+  .stat-row    { grid-template-columns: 1fr 1fr; }
+}
+
+/* ───────────────────────────────────────────
+   Coming soon (stub pages)
+─────────────────────────────────────────── */
+
+.coming-soon {
+  max-width: 480px;
+  padding: 48px 0;
+}
+
+.coming-soon h2 {
+  font-size: 17px;
+  font-weight: 500;
+  margin: 0 0 8px;
+}
+
+.coming-soon p {
+  font-size: 13px;
+  color: var(--text);
+  line-height: 1.65;
+  margin: 0 0 16px;
+}
+
+.coming-soon-badge {
+  display: inline-block;
+  font-size: 11px;
+  color: var(--brass);
+  border: 1px solid var(--rule);
+  border-radius: 3px;
+  padding: 3px 8px;
+}

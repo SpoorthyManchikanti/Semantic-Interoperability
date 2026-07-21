@@ -1,0 +1,375 @@
+.admin-review { max-width: 880px; }
+
+.exception-summary {
+  padding-bottom: 10px !important;
+  margin-bottom: 2px !important;
+}
+
+.exception-link-btn {
+  background: none;
+  border: none;
+  color: var(--text);
+  font-size: 12px;
+  font-family: var(--sans);
+  cursor: pointer;
+  padding: 6px 4px;
+  margin-left: 4px;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.exception-link-btn:hover:not(:disabled) { color: var(--text-h); }
+.exception-link-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+/* ── Review cards (concept + duplicate share this shell) ── */
+
+.review-card,
+.duplicate-card {
+  gap: 8px;
+}
+
+.review-card .error-box {
+  margin-bottom: 0;
+}
+
+.review-card-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.skip-badge {
+  display: inline-block;
+  padding: 1px 5px;
+  border-radius: 2px;
+  background: var(--surface);
+  color: var(--text);
+  font-style: italic;
+}
+
+.conf-badge-warning {
+  color: var(--warning);
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+  background: transparent;
+  padding: 0;
+}
+
+.conf-badge-critical {
+  color: var(--critical);
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+  background: transparent;
+  padding: 0;
+}
+
+.review-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+.review-btn {
+  padding: 6px 14px;
+  border-radius: 3px;
+  font-size: 12px;
+  font-family: var(--sans);
+  font-weight: 500;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 64px;
+  transition: opacity 0.15s;
+  border: 1px solid transparent;
+}
+
+.review-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+.approve-btn {
+  background: var(--accent);
+  color: #fff;
+}
+.approve-btn:hover:not(:disabled) { opacity: 0.85; }
+
+.correct-btn {
+  background: none;
+  border-color: var(--rule);
+  color: var(--text-h);
+}
+.correct-btn:hover:not(:disabled) { border-color: var(--accent); color: var(--accent); }
+
+.reject-btn {
+  background: none;
+  border-color: var(--rule);
+  color: var(--critical);
+}
+.reject-btn:hover:not(:disabled) { border-color: var(--critical); opacity: 0.85; }
+
+.skip-btn {
+  background: none;
+  color: var(--text);
+}
+.skip-btn:hover:not(:disabled) { color: var(--text-h); }
+
+/* ── Correction form ── */
+
+.correction-form {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding-top: 4px;
+}
+
+.correction-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 11px;
+  color: var(--text);
+}
+
+.correction-field input {
+  padding: 6px 10px;
+  border: 1px solid var(--rule);
+  border-radius: 3px;
+  font-size: 13px;
+  font-family: var(--sans);
+  color: var(--text-h);
+  background: var(--bg);
+  outline: none;
+}
+.correction-field input:focus { border-color: var(--accent); }
+.correction-field input:disabled { opacity: 0.5; }
+
+/* ── Duplicate review ── */
+
+.duplicate-pair {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.duplicate-patient {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  flex: 1;
+  min-width: 0;
+}
+
+.duplicate-vs {
+  font-size: 11px;
+  color: var(--text);
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+  flex-shrink: 0;
+}
+
+.match-indicator {
+  display: inline-block;
+  padding: 1px 5px;
+  border-radius: 2px;
+  background: var(--surface);
+}
+
+.match-yes { color: var(--success); }
+.match-no { color: var(--critical); }
+
+@media (max-width: 640px) {
+  .duplicate-pair { flex-direction: column; align-items: flex-start; gap: 8px; }
+  .duplicate-vs { display: none; }
+}
+
+/* ── Selective approval panel (drawer) ── */
+
+.review-panel-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.35);
+  z-index: 40;
+  animation: reviewPanelFadeIn 0.15s ease-out;
+}
+
+.review-panel {
+  position: fixed;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: 420px;
+  max-width: 100vw;
+  background: var(--bg);
+  border-left: 1px solid var(--rule);
+  box-shadow: -8px 0 24px rgba(0, 0, 0, 0.12);
+  z-index: 41;
+  display: flex;
+  flex-direction: column;
+  animation: reviewPanelSlideIn 0.2s ease-out;
+}
+
+@keyframes reviewPanelFadeIn {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+@keyframes reviewPanelSlideIn {
+  from { transform: translateX(100%); }
+  to   { transform: translateX(0); }
+}
+
+.review-panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--rule);
+  flex-shrink: 0;
+}
+
+.review-panel-header h3 {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--text-h);
+  overflow-wrap: break-word;
+  min-width: 0;
+}
+
+.review-panel-close {
+  background: none;
+  border: none;
+  font-size: 13px;
+  color: var(--text);
+  cursor: pointer;
+  padding: 4px 6px;
+  border-radius: 2px;
+  opacity: 0.6;
+  transition: opacity 0.15s;
+  flex-shrink: 0;
+}
+.review-panel-close:hover:not(:disabled) { opacity: 1; }
+.review-panel-close:disabled { opacity: 0.3; cursor: not-allowed; }
+
+.review-panel-body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.review-panel-patient-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.review-panel-list-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 4px;
+}
+
+.review-panel-label {
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--text);
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+}
+
+.review-panel-patient-row {
+  display: flex;
+  flex-direction: column;
+  padding: 5px 0;
+  border-bottom: 1px solid var(--rule-light);
+}
+.review-panel-patient-row:last-child { border-bottom: none; padding-bottom: 0; }
+
+.review-panel-patient-line {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.review-panel-checkbox-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: var(--text-h);
+  cursor: pointer;
+  min-width: 0;
+}
+
+.review-panel-checkbox-row span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.review-panel-checkbox-row input[type="checkbox"] {
+  width: 15px;
+  height: 15px;
+  flex-shrink: 0;
+  accent-color: var(--accent);
+  cursor: pointer;
+}
+
+.review-panel-patient-line .exception-link-btn {
+  flex-shrink: 0;
+}
+
+.review-panel-exception-form {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 0 0 23px;
+}
+
+.review-panel-exception-form input {
+  flex: 1;
+  min-width: 120px;
+  padding: 5px 8px;
+  border: 1px solid var(--rule);
+  border-radius: 3px;
+  font-size: 12px;
+  font-family: var(--sans);
+  color: var(--text-h);
+  background: var(--bg);
+  outline: none;
+}
+.review-panel-exception-form input:focus { border-color: var(--accent); }
+
+.review-panel-footer {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 16px 20px;
+  border-top: 1px solid var(--rule);
+  flex-shrink: 0;
+}
+
+.review-panel-footer .review-btn {
+  min-width: 0;
+}
+
+@media (max-width: 768px) {
+  .review-panel { width: min(360px, 100vw); }
+}
+
+@media (max-width: 480px) {
+  .review-panel {
+    width: 100vw;
+    max-width: 100vw;
+    border-left: none;
+  }
+}

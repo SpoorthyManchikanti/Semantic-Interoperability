@@ -1,0 +1,81 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500&family=IBM+Plex+Mono:wght@400&display=swap');
+
+:root {
+  /* ── Palette ── */
+  --bg:          #FAFAF8;
+  --text:        #8A8A85;
+  --text-h:      #2B2F36;
+  --accent:      #3B4A6B;
+  --teal:        #4A6670;
+  --brass:       #B08D57;
+  --rule:        #DEDBD2;
+  --rule-light:  #EDEBE3;
+  --surface:     #F2F0EB;
+
+  /* ── Status roles (restrained — reuse palette hues, one true red for critical) ── */
+  --success: var(--teal);
+  --warning: var(--brass);
+  --critical: #A2493D;
+  --info: var(--accent);
+
+  /* ── Typography ── */
+  --sans:    'Inter', system-ui, -apple-system, sans-serif;
+  --mono:    'IBM Plex Mono', ui-monospace, Consolas, monospace;
+  --heading: var(--sans);
+
+  font: 400 14px/1.6 var(--sans);
+  color: var(--text);
+  background: var(--bg);
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  font-feature-settings: "kern" 1, "liga" 1, "tnum" 1;
+  transition: background 0.15s, color 0.15s;
+}
+
+:root[data-theme="dark"] {
+  --bg:          #1B1D22;
+  --text:        #9497A0;
+  --text-h:      #EDEEF0;
+  --accent:      #6C82AD;
+  --teal:        #7FA3AC;
+  --brass:       #C9A26D;
+  --rule:        #33363E;
+  --rule-light:  #2A2C33;
+  --surface:     #232630;
+
+  --success: var(--teal);
+  --warning: var(--brass);
+  --critical: #C97165;
+  --info: var(--accent);
+}
+
+body { margin: 0; }
+
+#root {
+  min-height: 100svh;
+  display: flex;
+  flex-direction: column;
+  border: none;          /* override any cached Vite-template border-inline */
+  overflow-x: hidden;
+}
+
+h1, h2, h3 {
+  font-family: var(--sans);
+  font-weight: 500;
+  color: var(--text-h);
+  margin: 0;
+}
+
+p { margin: 0; }
+
+code {
+  font-family: var(--mono);
+  font-size: 12px;
+  font-weight: 400;
+  color: var(--text-h);
+  background: var(--surface);
+  padding: 1px 5px;
+  border-radius: 2px;
+}

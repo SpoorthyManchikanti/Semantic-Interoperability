@@ -1,35 +1,28 @@
 from fastapi import FastAPI
-from app.routes import patients, conditions, concepts
+from fastapi.middleware.cors import CORSMiddleware
 
-app = FastAPI(
-    title="Semantic Interoperability Layer",
-    description="FHIR data semantic normalization and unified query interface",
-    version="0.1.0"
+from app.routes import patients, conditions, concepts, dashboard, graph, ai_summary, patient_matches, patient_concepts
+
+app = FastAPI()
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origin_regex=r"^http://(localhost|127\.0\.0\.1|0\.0\.0\.0):(5173|5174|5175|8000|\d+)$",
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
-# Include route modules
+app.include_router(patient_matches.router)
 app.include_router(patients.router)
 app.include_router(conditions.router)
 app.include_router(concepts.router)
+app.include_router(dashboard.router)
+app.include_router(graph.router)
+app.include_router(ai_summary.router)
+app.include_router(patient_concepts.router)
 
 
 @app.get("/")
 def root():
-    """Root endpoint - API status and documentation."""
-    return {
-        "status": "Semantic Interoperability Layer Running",
-        "version": "0.1.0",
-        "endpoints": {
-            "docs": "/docs",
-            "redoc": "/redoc",
-            "patients": "/patients",
-            "conditions": "/conditions",
-            "concepts": "/concepts"
-        }
-    }
-
-
-@app.get("/health")
-def health_check():
-    """Health check endpoint."""
-    return {"status": "healthy"}
+    return {"message": "Semantic Interoperability API Running"}

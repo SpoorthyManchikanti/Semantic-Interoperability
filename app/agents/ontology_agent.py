@@ -103,4 +103,3 @@ class OntologyAgent:
             graphs.append(graph)
 
         return graphs
-
