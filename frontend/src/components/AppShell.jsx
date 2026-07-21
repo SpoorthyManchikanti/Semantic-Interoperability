@@ -7,9 +7,9 @@ const NAV_ITEMS = [
   { to: "/", label: "Dashboard", end: true },
   { to: "/patients", label: "Patients" },
   { to: "/explorer", label: "Semantic Explorer", stub: true },
-  { to: "/ontology", label: "Ontology Browser", stub: true },
+  { to: "/ontology", label: "Ontology Browser" },
   { to: "/knowledge-graph", label: "Knowledge Graph", stub: true },
-  { to: "/admin", label: "Admin Review", stub: true },
+  { to: "/admin", label: "Admin Review" },
   { to: "/data-quality", label: "Data Quality", stub: true },
 ];
 

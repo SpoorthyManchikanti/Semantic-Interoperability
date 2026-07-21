@@ -1,0 +1,68 @@
+[
+  {
+    "variation": "Truncated first name (typo \u2014 dropped trailing character)",
+    "original": {
+      "patient_id": "de7bdc23-9140-c119-268f-36fe8ddaab44",
+      "first_name": "Carl856",
+      "last_name": "Sporer811",
+      "gender": "male",
+      "birth_date": "1966-04-06"
+    },
+    "synthetic_clone": {
+      "patient_id": "synthetic-bfa642d0-0e6a-4355-b223-298bd5c115ac",
+      "first_name": "Carl85",
+      "last_name": "Sporer811",
+      "gender": "male",
+      "birth_date": "1966-04-06"
+    },
+    "altered_fields": [
+      "first_name"
+    ],
+    "match_score": 0.9953,
+    "would_flag_at_0.85": true
+  },
+  {
+    "variation": "Transposed digits in first name (typo)",
+    "original": {
+      "patient_id": "4c77f24d-765d-edf6-a7d7-bb1d14801f1b",
+      "first_name": "Amos720",
+      "last_name": "O'Hara248",
+      "gender": "male",
+      "birth_date": "1949-04-15"
+    },
+    "synthetic_clone": {
+      "patient_id": "synthetic-09909454-5410-4416-acf2-4f1fe2d07616",
+      "first_name": "Amos270",
+      "last_name": "O'Hara248",
+      "gender": "male",
+      "birth_date": "1949-04-15"
+    },
+    "altered_fields": [
+      "first_name"
+    ],
+    "match_score": 0.9953,
+    "would_flag_at_0.85": true
+  },
+  {
+    "variation": "Common surname misspelling (Johnston -> Johnson)",
+    "original": {
+      "patient_id": "299e68be-4e57-a106-3b8a-5e44df196f2a",
+      "first_name": "Ngan798",
+      "last_name": "Johnston597",
+      "gender": "female",
+      "birth_date": "1960-06-16"
+    },
+    "synthetic_clone": {
+      "patient_id": "synthetic-8f6f9b04-5ff8-4c24-9b66-00fb229dd532",
+      "first_name": "Ngan798",
+      "last_name": "Johnson597",
+      "gender": "female",
+      "birth_date": "1960-06-16"
+    },
+    "altered_fields": [
+      "last_name"
+    ],
+    "match_score": 0.9958,
+    "would_flag_at_0.85": true
+  }
+]

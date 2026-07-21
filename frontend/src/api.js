@@ -9,6 +9,19 @@ async function getJson(path) {
   return response.json();
 }
 
+async function patchJson(path, body) {
+  const response = await fetch(`${API}${path}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  if (!response.ok) {
+    const err = await response.json().catch(() => ({}));
+    throw new Error(err.detail || `Request failed (${response.status})`);
+  }
+  return response.json();
+}
+
 export async function getPatient(patientId) {
   return getJson(`/patients/${patientId}`);
 }
@@ -24,6 +37,10 @@ export async function listPatients(limit = 10, offset = 0) {
 export async function searchPatients(params = {}) {
   const qs = new URLSearchParams(params).toString();
   return getJson(`/patients/search?${qs}`);
+}
+
+export async function getDataSourceSummary() {
+  return getJson(`/patients/data-source-summary`);
 }
 
 export async function getDashboardSummary() {
@@ -52,4 +69,28 @@ export async function getAiSummary(patientId) {
 
 export async function getConcepts() {
   return getJson(`/concepts/`);
+}
+
+export async function getNeedsReviewConcepts() {
+  return getJson(`/concepts/needs-review`);
+}
+
+export async function getOmopResolution() {
+  return getJson(`/concepts/omop-resolution`);
+}
+
+export async function reviewConcept(conceptId, body) {
+  return patchJson(`/concepts/${conceptId}/review`, body);
+}
+
+export async function getPatientMatches() {
+  return getJson(`/patients/matches`);
+}
+
+export async function reviewPatientMatch(matchId, body) {
+  return patchJson(`/patients/matches/${matchId}/review`, body);
+}
+
+export async function flagPatientConceptException(patientConceptId, body) {
+  return patchJson(`/patient-concepts/${patientConceptId}/exception`, body);
 }

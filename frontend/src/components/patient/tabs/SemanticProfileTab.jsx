@@ -32,6 +32,13 @@ function SemanticCard({ concept, related, onViewOntology }) {
           <span className="badge subcat-badge">Recorded {concept.occurrences}&times;</span>
         )}
       </div>
+      {concept.omopStandardName && (
+        <div className="semantic-card-omop">
+          <span className="omop-label">OMOP:</span>
+          <span className="omop-name">{concept.omopStandardName}</span>
+          {concept.omopDomain && <span className="badge omop-domain-badge">{concept.omopDomain}</span>}
+        </div>
+      )}
       {related.length > 0 && (
         <div className="related-concepts">
           <span className="related-label">Related concepts</span>

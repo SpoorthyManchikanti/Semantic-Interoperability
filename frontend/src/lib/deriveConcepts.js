@@ -18,6 +18,9 @@ export function buildConceptList(patient) {
     confidence: typeof c === "object" ? c.confidence : null,
     status: typeof c === "object" && c.status ? c.status : "mapped",
     sourceSystem: typeof c === "object" ? c.source_system ?? null : null,
+    omopConceptId: typeof c === "object" ? c.omop_concept_id ?? null : null,
+    omopStandardName: typeof c === "object" ? c.omop_standard_name ?? null : null,
+    omopDomain: typeof c === "object" ? c.omop_domain ?? null : null,
   }));
 
   const fromMedications = medications.map((m, i) => ({
@@ -33,6 +36,9 @@ export function buildConceptList(patient) {
     confidence: typeof m === "object" ? m.confidence : null,
     status: typeof m === "object" && m.status ? m.status : "mapped",
     sourceSystem: typeof m === "object" ? m.source_system ?? null : null,
+    omopConceptId: typeof m === "object" ? m.omop_concept_id ?? null : null,
+    omopStandardName: typeof m === "object" ? m.omop_standard_name ?? null : null,
+    omopDomain: typeof m === "object" ? m.omop_domain ?? null : null,
   }));
 
   const fromObservations = observations.map((o, i) => ({
@@ -46,6 +52,9 @@ export function buildConceptList(patient) {
     confidence: o.confidence ?? null,
     status: o.status ?? "mapped",
     sourceSystem: o.source_system ?? null,
+    omopConceptId: o.omop_concept_id ?? null,
+    omopStandardName: o.omop_standard_name ?? null,
+    omopDomain: o.omop_domain ?? null,
   }));
 
   return [...fromConditions, ...fromMedications, ...fromObservations];

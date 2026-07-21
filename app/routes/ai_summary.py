@@ -1,6 +1,8 @@
 """AI-generated executive summary for a patient's semantic profile."""
 
 import os
+import json
+from datetime import datetime, timezone
 
 from dotenv import load_dotenv
 from fastapi import APIRouter, HTTPException
@@ -21,17 +23,32 @@ client = AzureOpenAI(
 
 DEPLOYMENT = os.getenv("AZURE_OPENAI_DEPLOYMENT")
 
+PROFILE_CACHE_HOURS = 24
+
 
 @router.get("/patients/{patient_id}/ai-summary")
 def get_ai_summary(patient_id: str):
-    """Generate a short executive summary from this patient's classified concepts."""
+    """Generate a short executive summary from this patient's classified concepts.
+    Caches the result in patient_profiles.profile_json; a cached profile younger
+    than 24 hours is returned as-is instead of regenerating."""
     with engine.connect() as conn:
         patient_row = conn.execute(text("""
-            SELECT patient_id, first_name, last_name, gender FROM patients WHERE patient_id = :id
+            SELECT patient_id, first_name, last_name, gender, data_source FROM patients WHERE patient_id = :id
         """), {"id": patient_id}).fetchone()
 
         if not patient_row:
             raise HTTPException(status_code=404, detail="Patient not found")
+
+        cached = conn.execute(text(f"""
+            SELECT profile_json FROM patient_profiles
+            WHERE patient_id = :id
+              AND updated_at > NOW() - INTERVAL '{PROFILE_CACHE_HOURS} hours'
+        """), {"id": patient_id}).fetchone()
+
+        if cached:
+            result = dict(cached.profile_json)
+            result["cached"] = True
+            return result
 
         conditions = conn.execute(text("""
             SELECT c.condition_name, con.category, con.vocabulary_code, con.confidence
@@ -84,7 +101,10 @@ Write a 3-4 sentence executive summary. State the patient's key conditions,
 which vocabularies their diagnoses/medications/labs were mapped to, the
 overall mapping confidence, and any clinically meaningful relationship
 between the conditions, medications, and observations above. Do not invent
-information not present above. Plain prose, no markdown, no bullet points."""
+information not present above. Plain prose, no markdown, no bullet points.
+
+After the summary, on its own final line, write exactly:
+Source: {patient_row.data_source or "Unknown"}"""
 
     response = client.chat.completions.create(
         model=DEPLOYMENT,
@@ -94,7 +114,20 @@ information not present above. Plain prose, no markdown, no bullet points."""
     all_conf = [r.confidence for r in (*conditions, *medications, *observations) if r.confidence is not None]
     avg_confidence = round(sum(all_conf) / len(all_conf) * 100, 1) if all_conf else None
 
-    return {
+    result = {
         "summary": response.choices[0].message.content.strip(),
         "confidence": avg_confidence,
+        "generated_at": datetime.now(timezone.utc).isoformat(),
     }
+
+    with engine.begin() as conn:
+        conn.execute(text("""
+            INSERT INTO patient_profiles (patient_id, profile_json, updated_at)
+            VALUES (:patient_id, CAST(:profile_json AS JSONB), NOW())
+            ON CONFLICT (patient_id) DO UPDATE
+            SET profile_json = EXCLUDED.profile_json,
+                updated_at = NOW()
+        """), {"patient_id": patient_id, "profile_json": json.dumps(result)})
+
+    result["cached"] = False
+    return result

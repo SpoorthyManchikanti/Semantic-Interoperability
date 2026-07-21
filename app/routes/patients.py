@@ -47,12 +47,28 @@ def search_patients(q: str = None, first_name: str = None, last_name: str = None
         return [dict(row._mapping) for row in result.fetchall()]
 
 
+@router.get("/data-source-summary")
+def get_data_source_summary():
+    """Real breakdown of patients.data_source — a live query, not a
+    hardcoded label. Used by pages that aren't tied to one patient
+    (Dashboard, Ontology Browser) to show provenance in aggregate."""
+    with engine.connect() as conn:
+        rows = conn.execute(text("""
+            SELECT data_source, COUNT(*) as count
+            FROM patients
+            GROUP BY data_source
+            ORDER BY count DESC
+        """)).fetchall()
+        return [dict(row._mapping) for row in rows]
+
+
 @router.get("/{patient_id}")
 def get_patient(patient_id: str):
     """Get complete patient profile with classified concepts."""
     with engine.connect() as conn:
         patient_row = conn.execute(text("""
-            SELECT patient_id, first_name, last_name, gender, birth_date
+            SELECT patient_id, first_name, last_name, gender, birth_date, data_source,
+                   merge_status, merged_into, merged_at
             FROM patients WHERE patient_id = :id
         """), {"id": patient_id}).fetchone()
 
@@ -61,10 +77,18 @@ def get_patient(patient_id: str):
 
         patient = dict(patient_row._mapping)
 
+        # A merged-away record has no clinical data left under its own
+        # patient_id (it was reassigned to merged_into) — return its merge
+        # status plainly instead of a misleading "no conditions/medications
+        # /observations" active-patient response.
+        if patient["merge_status"] == "merged":
+            return patient
+
         # Get conditions with concept classifications
         conditions = conn.execute(text("""
             SELECT c.condition_name, con.category, con.subcategory,
-                   con.vocabulary_code as snomed_code, con.confidence
+                   con.vocabulary_code as snomed_code, con.confidence,
+                   con.omop_concept_id, con.omop_standard_name, con.omop_domain
             FROM conditions c
             LEFT JOIN concepts con ON con.concept_name = c.condition_name
                 AND con.source_type = 'condition'
@@ -75,7 +99,8 @@ def get_patient(patient_id: str):
         observations = conn.execute(text("""
             SELECT o.observation_name, o.observation_value,
                    con.category, con.subcategory,
-                   con.vocabulary_code as loinc_code, con.confidence
+                   con.vocabulary_code as loinc_code, con.confidence,
+                   con.omop_concept_id, con.omop_standard_name, con.omop_domain
             FROM observations o
             LEFT JOIN concepts con ON con.concept_name = o.observation_name
                 AND con.source_type = 'observation'
@@ -85,7 +110,8 @@ def get_patient(patient_id: str):
         # Get medications with concept classifications
         medications = conn.execute(text("""
             SELECT m.medication_name, con.category, con.subcategory,
-                   con.vocabulary_code as rxnorm_code, con.confidence
+                   con.vocabulary_code as rxnorm_code, con.confidence,
+                   con.omop_concept_id, con.omop_standard_name, con.omop_domain
             FROM medications m
             LEFT JOIN concepts con ON con.concept_name = m.medication_name
                 AND con.source_type = 'medication'

@@ -16,6 +16,7 @@ export default function PatientHeader({ patient, displayName, onClose }) {
           <span className="meta-chip mono">MRN: {patient.id ?? patient.patient_id}</span>
           {patient.age != null && <span className="meta-chip">Age: {patient.age}</span>}
           {patient.gender && <span className="meta-chip capitalize">{patient.gender}</span>}
+          {patient.data_source && <span className="meta-chip">Source: {patient.data_source}</span>}
         </div>
       </div>
       {/* Backend does not return a last-encounter date on GET /patients/{id} today.
