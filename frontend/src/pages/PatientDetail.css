@@ -85,6 +85,34 @@
 .status-mapped { color: var(--success); background: transparent; }
 .status-flagged { color: var(--warning); background: transparent; }
 
+/* ── Risk flag callout ── */
+
+.risk-flag-callout {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  border-left: 2px solid var(--brass);
+  padding: 8px 14px;
+  margin-bottom: 16px;
+}
+
+.risk-flag-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  font-size: 13px;
+  color: var(--text-h);
+}
+
+.risk-flag-icon {
+  color: var(--brass);
+  flex-shrink: 0;
+  font-size: 13px;
+  margin-top: 1px;
+}
+
+.risk-flag-text { flex: 1; }
+
 .semantic-card-omop {
   display: flex;
   align-items: center;
@@ -203,6 +231,69 @@
 .ai-summary { max-width: 720px; }
 
 .ai-summary-confidence { margin-bottom: 12px; }
+
+.ai-summary-section {
+  margin-bottom: 22px;
+}
+
+.ai-summary-section-title {
+  font-size: 11px;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  color: var(--text);
+  margin: 0 0 8px;
+}
+
+.ai-summary-bullet-list {
+  margin: 0;
+  padding-left: 18px;
+  font-size: 13px;
+  color: var(--text-h);
+  line-height: 1.7;
+}
+
+.ai-summary-med-omop {
+  color: var(--text);
+  font-size: 12px;
+}
+
+.problem-group {
+  padding-left: 10px;
+  border-left: 2px solid var(--rule);
+  margin-bottom: 14px;
+}
+
+.problem-group:last-child { margin-bottom: 0; }
+
+.problem-group.priority-high { border-left-color: var(--critical); }
+.problem-group.priority-medium { border-left-color: var(--rule); }
+.problem-group.priority-low { border-left-color: var(--rule-light); opacity: 0.75; }
+
+.problem-group-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 4px;
+}
+
+.problem-group-title {
+  font-size: 11px;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+  color: var(--text);
+}
+
+.priority-high .problem-group-title { color: var(--critical); }
+
+.item-card.problem-item {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
 
 .ai-summary-text {
   font-size: 13.5px;

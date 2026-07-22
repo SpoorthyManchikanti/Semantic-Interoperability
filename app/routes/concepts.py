@@ -324,9 +324,9 @@ def list_concepts():
     """List all classified concepts."""
     with engine.connect() as conn:
         rows = conn.execute(text("""
-            SELECT concept_id, concept_name, source_type, category, 
+            SELECT concept_id, concept_name, source_type, category,
                    subcategory, confidence, vocabulary_code, vocabulary_id,
-                   needs_review
+                   omop_concept_id, needs_review
             FROM concepts
             ORDER BY source_type, category, concept_name
         """)).fetchall()

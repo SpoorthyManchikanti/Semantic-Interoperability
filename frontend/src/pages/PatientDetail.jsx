@@ -3,6 +3,7 @@ import { useParams } from "react-router-dom";
 import { getPatient } from "../api";
 import PatientHeader from "../components/PatientHeader";
 import StatRow from "../components/StatRow";
+import RiskFlagCallout from "../components/patient/RiskFlagCallout";
 import { buildConceptList, deriveStats } from "../lib/deriveConcepts";
 import OverviewTab from "../components/patient/tabs/OverviewTab";
 import ClinicalDataTab from "../components/patient/tabs/ClinicalDataTab";
@@ -64,6 +65,7 @@ function PatientDetailView({ patientId }) {
   return (
     <div className="dashboard patient-detail">
       <PatientHeader patient={patient} displayName={displayName} onClose={null} />
+      <RiskFlagCallout patientId={patientId} />
       <StatRow stats={stats} />
 
       <div className="tab-bar" role="tablist">

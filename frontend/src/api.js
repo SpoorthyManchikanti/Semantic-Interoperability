@@ -71,6 +71,10 @@ export async function getAiSummary(patientId) {
   return getJson(`/patients/${patientId}/ai-summary`);
 }
 
+export async function getPatientRiskFlags(patientId) {
+  return getJson(`/patients/${patientId}/risk-flags`);
+}
+
 export async function getConcepts() {
   return getJson(`/concepts/`);
 }

@@ -72,13 +72,6 @@ def get_summary():
             "SELECT COUNT(*) FROM patient_matches"
         )).scalar() or 0
 
-        vocab_rows = conn.execute(text("""
-            SELECT vocabulary_id, COUNT(*) as total, COUNT(vocabulary_code) as with_code
-            FROM concepts
-            WHERE vocabulary_id IS NOT NULL
-            GROUP BY vocabulary_id
-        """)).fetchall()
-
         vocabulary_code_presence = (with_code / total_concepts * 100) if total_concepts else 0
         omop_resolution_rate_full = (omop_resolved / total_concepts * 100) if total_concepts else 0
         omop_resolution_rate_demo_subset = (
@@ -97,15 +90,6 @@ def get_summary():
             "concepts_flagged_for_review": needs_review,
             "concept_relationships_discovered": concept_relationships_discovered,
             "potential_duplicate_patients": potential_duplicate_patients,
-            "vocabulary_coverage": [
-                {
-                    "vocabulary_id": row[0],
-                    "total": row[1],
-                    "with_code": row[2],
-                    "coverage_pct": round(row[2] / row[1] * 100, 1) if row[1] else 0,
-                }
-                for row in vocab_rows
-            ],
         }
 
 
