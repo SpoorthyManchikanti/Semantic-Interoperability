@@ -1,0 +1,133 @@
+.ontology-caption {
+  font-size: 12.5px;
+  color: var(--text);
+  line-height: 1.6;
+  max-width: 720px;
+  margin: 0 0 16px;
+}
+
+.ontology-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 28px;
+  margin-bottom: 14px;
+}
+
+.legend-group {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+
+.legend-group-title {
+  font-size: 10.5px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  color: var(--text);
+  opacity: 0.7;
+}
+
+.legend-items {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 16px;
+  font-size: 12.5px;
+  color: var(--text);
+}
+
+.legend-items span { display: inline-flex; align-items: center; gap: 8px; }
+
+.legend-items i.legend-dot {
+  width: 11px;
+  height: 11px;
+  border-radius: 50%;
+  display: inline-block;
+  flex-shrink: 0;
+}
+
+.legend-items i.legend-line {
+  width: 20px;
+  height: 4px;
+  border-radius: 2px;
+  display: inline-block;
+  flex-shrink: 0;
+}
+
+.ontology-graph {
+  border: 1px solid var(--rule);
+  border-radius: 6px;
+  overflow: hidden;
+  background: var(--surface);
+  height: calc(100vh - 360px);
+  min-height: 420px;
+}
+
+.ontology-filters {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 18px;
+  font-size: 12.5px;
+  color: var(--text);
+  margin-bottom: 12px;
+  padding: 10px 12px;
+  border: 1px solid var(--rule);
+  border-radius: 6px;
+  background: var(--surface);
+}
+
+.ontology-filters label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.ontology-filters .filter-divider {
+  width: 1px;
+  height: 16px;
+  background: var(--rule);
+}
+
+.ontology-search {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.ontology-search input {
+  flex: 0 1 320px;
+  font-size: 12.5px;
+  font-family: var(--sans);
+  padding: 7px 10px;
+  border: 1px solid var(--rule);
+  border-radius: 6px;
+  background: var(--surface);
+  color: var(--text);
+}
+
+.ontology-search input:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+.ontology-search-clear {
+  background: none;
+  border: none;
+  color: var(--accent);
+  font-size: 12px;
+  font-family: var(--sans);
+  cursor: pointer;
+  padding: 0;
+}
+.ontology-search-clear:hover { text-decoration: underline; }
+
+.ontology-search-count {
+  font-size: 12px;
+  color: var(--text);
+  opacity: 0.7;
+}

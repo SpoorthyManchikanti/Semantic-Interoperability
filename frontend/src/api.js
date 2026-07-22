@@ -83,6 +83,14 @@ export async function getOmopResolution() {
   return getJson(`/concepts/omop-resolution`);
 }
 
+export async function searchConcepts(q) {
+  return getJson(`/concepts/search?q=${encodeURIComponent(q)}`);
+}
+
+export async function getConceptGraph(conceptId) {
+  return getJson(`/concepts/${conceptId}/graph`);
+}
+
 export async function reviewConcept(conceptId, body) {
   return patchJson(`/concepts/${conceptId}/review`, body);
 }

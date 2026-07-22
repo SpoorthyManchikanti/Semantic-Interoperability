@@ -6,7 +6,7 @@ import "./AppShell.css";
 const NAV_ITEMS = [
   { to: "/", label: "Dashboard", end: true },
   { to: "/ontology", label: "Ontology Browser" },
-  { to: "/explorer", label: "Semantic Explorer", stub: true },
+  { to: "/explorer", label: "Semantic Explorer" },
   { to: "/admin", label: "Admin Review" },
   { to: "/patients", label: "Patients" },
 ];

@@ -280,6 +280,45 @@ def get_omop_resolution():
         }
 
 
+@router.get("/search")
+def search_concepts(q: str):
+    """Search across all 542 concepts (every patient, not just the 15-patient
+    demo subset) by concept name, vocabulary_code, or Athena synonym.
+
+    Synonym matching only fires for the 341/542 concepts that have resolved
+    an omop_concept_id (the other 201 simply fall back to name/code
+    matching, via the LEFT JOIN below) — extending OMOP enrichment to those
+    201 is a separate, slower pipeline re-run and isn't needed for search
+    coverage: every concept remains matchable by name/code regardless.
+    """
+    if not q or not q.strip():
+        return []
+    term = f"%{q.strip()}%"
+    with engine.connect() as conn:
+        rows = conn.execute(text("""
+            SELECT
+                con.concept_id,
+                con.concept_name,
+                con.vocabulary_id,
+                con.category,
+                con.subcategory,
+                con.omop_standard_name,
+                con.omop_domain,
+                COUNT(DISTINCT pc.patient_id) AS patient_count
+            FROM concepts con
+            LEFT JOIN patient_concepts pc ON pc.concept_id = con.concept_id
+            LEFT JOIN "Athena_Concept_Synonyms" syn ON syn.concept_id = con.omop_concept_id
+            WHERE con.concept_name ILIKE :term
+               OR con.vocabulary_code ILIKE :term
+               OR syn.concept_synonym_name ILIKE :term
+            GROUP BY con.concept_id, con.concept_name, con.vocabulary_id,
+                     con.category, con.subcategory, con.omop_standard_name, con.omop_domain
+            ORDER BY con.concept_name
+            LIMIT 50
+        """), {"term": term}).fetchall()
+        return [dict(r._mapping) for r in rows]
+
+
 @router.get("/")
 def list_concepts():
     """List all classified concepts."""
