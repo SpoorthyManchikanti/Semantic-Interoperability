@@ -87,6 +87,14 @@ export async function getOmopResolution() {
   return getJson(`/concepts/omop-resolution`);
 }
 
+export async function getVocabularyMismatches() {
+  return getJson(`/concepts/vocabulary-mismatches`);
+}
+
+export async function reviewVocabularyMismatch(conceptId, body) {
+  return patchJson(`/concepts/${conceptId}/vocabulary-review`, body);
+}
+
 export async function searchConcepts(q) {
   return getJson(`/concepts/search?q=${encodeURIComponent(q)}`);
 }

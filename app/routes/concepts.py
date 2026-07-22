@@ -18,6 +18,12 @@ class ConceptReviewRequest(BaseModel):
     reviewed_by: str
     patient_concept_ids: Optional[List[int]] = None
 
+
+class VocabularyReviewRequest(BaseModel):
+    decision: Literal["acknowledged", "corrected"]
+    corrected_vocabulary_id: Optional[str] = None
+    reviewed_by: str
+
 # DEMO CODE — hardcoded to the 15-patient demo subset selected for the
 # richest concept coverage; not a general-purpose patient filter.
 DEMO_SUBSET_PATIENT_IDS = [
@@ -241,6 +247,7 @@ def get_omop_resolution():
 
         unresolved_rows = conn.execute(text("""
             SELECT
+                con.concept_id,
                 con.concept_name,
                 con.source_type,
                 con.vocabulary_id,
@@ -278,6 +285,112 @@ def get_omop_resolution():
             "breakdown_by_source_type": [dict(r._mapping) for r in by_source_type],
             "unresolved_details": [dict(r._mapping) for r in unresolved_rows],
         }
+
+
+# DEMO CODE — filters to the hardcoded demo subset above rather than all patients.
+@router.get("/vocabulary-mismatches")
+def get_vocabulary_mismatches():
+    """Concepts flagged vocabulary_mismatch=true (a real code/vocabulary_id
+    disagreement caught by Athena cross-reference) that still need a human
+    decision — drops out once acknowledged or corrected via
+    PATCH /concepts/{id}/vocabulary-review.
+
+    Deliberately independent of needs_review: this queue never reads or
+    writes it, and reviewing a vocabulary mismatch here does not resolve
+    (or need to resolve) anything in GET /concepts/needs-review, since the
+    two flags catch different problems — a code/vocabulary disagreement here
+    vs. Agent 1's own classification confidence there."""
+    with engine.connect() as conn:
+        rows = conn.execute(text("""
+            SELECT
+                con.concept_id,
+                con.concept_name,
+                con.vocabulary_id,
+                con.vocabulary_code,
+                COUNT(DISTINCT pc.patient_id) AS affected_patient_count,
+                'vocabulary_code ''' || COALESCE(con.vocabulary_code, '') ||
+                    ''' has no matching Athena concept under vocabulary_id ''' ||
+                    COALESCE(con.vocabulary_id, '') ||
+                    ''' - code and vocabulary label disagree' AS reason
+            FROM concepts con
+            JOIN patient_concepts pc ON pc.concept_id = con.concept_id
+            WHERE con.vocabulary_mismatch = TRUE
+              AND con.vocabulary_review_decision IS NULL
+              AND pc.patient_id = ANY(:patient_ids)
+            GROUP BY con.concept_id, con.concept_name, con.vocabulary_id, con.vocabulary_code
+            ORDER BY con.concept_name
+        """), {"patient_ids": DEMO_SUBSET_PATIENT_IDS}).fetchall()
+        return [dict(r._mapping) for r in rows]
+
+
+@router.patch("/{concept_id}/vocabulary-review")
+def review_vocabulary_mismatch(concept_id: str, body: VocabularyReviewRequest):
+    """Record a human decision on a vocabulary_mismatch concept.
+
+    Never reads or writes needs_review/review_decision/reviewed_by/reviewed_at
+    — those belong to the separate needs_review workflow
+    (PATCH /concepts/{id}/review). This endpoint has its own audit columns
+    (vocabulary_review_decision/vocabulary_reviewed_by/vocabulary_reviewed_at)
+    so the two review flows can never conflate or overwrite each other.
+
+    - 'acknowledged': marks it reviewed, no data change — a known, accepted
+      issue (e.g. a Synthea-generated code with no real Athena equivalent).
+    - 'corrected': requires corrected_vocabulary_id; overwrites
+      concepts.vocabulary_id and clears vocabulary_mismatch, so the concept
+      naturally drops out of both this queue and Ontology Browser's
+      unresolved-concepts list."""
+    with engine.begin() as conn:
+        existing = conn.execute(text(
+            "SELECT concept_id, vocabulary_mismatch FROM concepts WHERE concept_id = :id"
+        ), {"id": concept_id}).fetchone()
+        if not existing:
+            raise HTTPException(status_code=404, detail="Concept not found")
+        if not existing.vocabulary_mismatch:
+            raise HTTPException(status_code=400, detail="Concept is not flagged vocabulary_mismatch")
+
+        reviewed_at = datetime.now(timezone.utc)
+
+        if body.decision == "corrected":
+            if not body.corrected_vocabulary_id:
+                raise HTTPException(
+                    status_code=400,
+                    detail="corrected_vocabulary_id is required for decision='corrected'",
+                )
+            conn.execute(text("""
+                UPDATE concepts
+                SET vocabulary_id = :vocabulary_id,
+                    vocabulary_mismatch = FALSE,
+                    vocabulary_review_decision = :decision,
+                    vocabulary_reviewed_by = :reviewed_by,
+                    vocabulary_reviewed_at = :reviewed_at
+                WHERE concept_id = :concept_id
+            """), {
+                "vocabulary_id": body.corrected_vocabulary_id,
+                "decision": body.decision,
+                "reviewed_by": body.reviewed_by,
+                "reviewed_at": reviewed_at,
+                "concept_id": concept_id,
+            })
+        else:
+            conn.execute(text("""
+                UPDATE concepts
+                SET vocabulary_review_decision = :decision,
+                    vocabulary_reviewed_by = :reviewed_by,
+                    vocabulary_reviewed_at = :reviewed_at
+                WHERE concept_id = :concept_id
+            """), {
+                "decision": body.decision,
+                "reviewed_by": body.reviewed_by,
+                "reviewed_at": reviewed_at,
+                "concept_id": concept_id,
+            })
+
+        row = conn.execute(text("""
+            SELECT concept_id, concept_name, vocabulary_id, vocabulary_mismatch,
+                   vocabulary_review_decision, vocabulary_reviewed_by, vocabulary_reviewed_at
+            FROM concepts WHERE concept_id = :concept_id
+        """), {"concept_id": concept_id}).fetchone()
+        return dict(row._mapping)
 
 
 @router.get("/search")

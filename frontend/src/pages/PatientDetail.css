@@ -6,7 +6,7 @@
   display: flex;
   gap: 4px;
   border-bottom: 1px solid var(--rule);
-  margin-bottom: 24px;
+  margin-bottom: 16px;
   overflow-x: auto;
 }
 
@@ -14,7 +14,7 @@
   background: none;
   border: none;
   border-bottom: 2px solid transparent;
-  padding: 10px 14px;
+  padding: 8px 14px;
   font-size: 13px;
   font-family: var(--sans);
   color: var(--text);
@@ -228,7 +228,7 @@
 
 /* ── AI summary ── */
 
-.ai-summary { max-width: 720px; }
+.ai-summary { max-width: 960px; }
 
 .ai-summary-confidence { margin-bottom: 12px; }
 
@@ -237,12 +237,14 @@
 }
 
 .ai-summary-section-title {
-  font-size: 11px;
-  font-weight: 500;
+  font-size: 13px;
+  font-weight: 600;
   text-transform: uppercase;
-  letter-spacing: 0.4px;
-  color: var(--text);
-  margin: 0 0 8px;
+  letter-spacing: 0.5px;
+  color: var(--text-h);
+  margin: 0 0 10px;
+  padding-bottom: 6px;
+  border-bottom: 1px solid var(--rule-light);
 }
 
 .ai-summary-bullet-list {
@@ -278,27 +280,47 @@
 }
 
 .problem-group-title {
-  font-size: 11px;
-  font-weight: 500;
+  font-size: 12px;
+  font-weight: 600;
   text-transform: uppercase;
-  letter-spacing: 0.3px;
-  color: var(--text);
+  letter-spacing: 0.4px;
+  color: var(--text-h);
 }
 
 .priority-high .problem-group-title { color: var(--critical); }
 
-.item-card.problem-item {
+.problem-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
+  gap: 2px 16px;
+}
+
+.problem-cell {
   display: flex;
-  flex-direction: row;
   align-items: center;
   justify-content: space-between;
-  gap: 10px;
+  gap: 8px;
+  padding: 4px 0;
+  border-bottom: 1px solid var(--rule-light);
+  min-width: 0;
 }
+
+.problem-cell-name {
+  font-size: 12.5px;
+  color: var(--text-h);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+}
+
+.standardized-badge { color: var(--success); background: transparent; }
 
 .ai-summary-text {
   font-size: 13.5px;
   line-height: 1.75;
   color: var(--text-h);
+  max-width: 680px;
 }
 
 .ai-summary-skeleton { max-width: 720px; }

@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
 } from "recharts";
@@ -34,6 +35,7 @@ function ChevronIcon({ expanded }) {
 }
 
 function UnresolvedGroupCard({ group }) {
+  const navigate = useNavigate();
   const [expanded, setExpanded] = useState(false);
   const patientCount = group.patients.length;
   const proportionPct = Math.min(100, Math.round((patientCount / DEMO_COHORT_SIZE) * 100));
@@ -68,14 +70,25 @@ function UnresolvedGroupCard({ group }) {
 
       <p className="unresolved-reason">{group.reason}</p>
 
-      <button
-        className="expand-toggle-btn"
-        onClick={() => setExpanded((e) => !e)}
-        aria-expanded={expanded}
-      >
-        <ChevronIcon expanded={expanded} />
-        {expanded ? "Hide patients" : "Show patients"}
-      </button>
+      <div className="unresolved-card-actions">
+        <button
+          className="expand-toggle-btn"
+          onClick={() => setExpanded((e) => !e)}
+          aria-expanded={expanded}
+        >
+          <ChevronIcon expanded={expanded} />
+          {expanded ? "Hide patients" : "Show patients"}
+        </button>
+
+        {group.vocabulary_mismatch && (
+          <button
+            className="view-ontology-btn"
+            onClick={() => navigate(`/admin?tab=data-quality&concept=${group.concept_id}`)}
+          >
+            Resolve in Admin Review &#8594;
+          </button>
+        )}
+      </div>
 
       {expanded && (
         <div className="unresolved-patient-list">
@@ -113,6 +126,7 @@ export default function OntologyBrowser() {
       const key = `${row.concept_name}||${row.reason}`;
       if (!map.has(key)) {
         map.set(key, {
+          concept_id: row.concept_id,
           concept_name: row.concept_name,
           vocabulary_id: row.vocabulary_id,
           vocabulary_code: row.vocabulary_code,
@@ -141,7 +155,7 @@ export default function OntologyBrowser() {
   }));
 
   return (
-    <div className="dashboard-page">
+    <div className="dashboard-page ontology-browser-page">
       <div className="dashboard-header">
         <h2 className="page-title">Ontology Browser</h2>
         <p className="page-subtitle">

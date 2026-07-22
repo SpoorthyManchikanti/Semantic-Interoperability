@@ -1,10 +1,13 @@
 import { useEffect, useMemo, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import {
   getNeedsReviewConcepts,
   reviewConcept,
   flagPatientConceptException,
   getPatientMatches,
   reviewPatientMatch,
+  getVocabularyMismatches,
+  reviewVocabularyMismatch,
 } from "../api";
 import "./AdminReview.css";
 
@@ -449,13 +452,169 @@ function DuplicateReviewTab() {
   );
 }
 
+function DataQualityCard({ item, highlighted, onResolved }) {
+  const [correcting, setCorrecting] = useState(false);
+  const [vocabularyId, setVocabularyId] = useState(item.vocabulary_id ?? "");
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState(null);
+
+  async function submitAcknowledge() {
+    setSubmitting(true);
+    setError(null);
+    try {
+      await reviewVocabularyMismatch(item.concept_id, { decision: "acknowledged", reviewed_by: REVIEWED_BY });
+      onResolved(item.concept_id);
+    } catch (err) {
+      setError(err.message || "Failed to acknowledge");
+      setSubmitting(false);
+    }
+  }
+
+  async function submitCorrection(e) {
+    e.preventDefault();
+    if (!vocabularyId.trim()) return;
+    setSubmitting(true);
+    setError(null);
+    try {
+      await reviewVocabularyMismatch(item.concept_id, {
+        decision: "corrected",
+        corrected_vocabulary_id: vocabularyId.trim(),
+        reviewed_by: REVIEWED_BY,
+      });
+      onResolved(item.concept_id);
+    } catch (err) {
+      setError(err.message || "Failed to submit correction");
+      setSubmitting(false);
+    }
+  }
+
+  return (
+    <div
+      id={`concept-${item.concept_id}`}
+      className={`item-card review-card${highlighted ? " dq-card-highlighted" : ""}`}
+    >
+      <div className="review-card-head">
+        <span className="item-name"><span className="name-text">{item.concept_name}</span></span>
+      </div>
+
+      <div className="item-badges">
+        <span className="badge cat-badge">{item.vocabulary_id}: {item.vocabulary_code}</span>
+        <span className="badge subcat-badge">
+          Affects {item.affected_patient_count} patient{item.affected_patient_count === 1 ? "" : "s"}
+        </span>
+      </div>
+
+      <p className="dq-reason">{item.reason}</p>
+
+      {error && (
+        <div className="error-box" role="alert">
+          <span className="error-msg">{error}</span>
+        </div>
+      )}
+
+      {!correcting ? (
+        <div className="review-actions">
+          <button className="review-btn approve-btn" onClick={submitAcknowledge} disabled={submitting}>
+            {submitting ? <span className="spinner" /> : "Acknowledge — known issue"}
+          </button>
+          <button className="review-btn correct-btn" onClick={() => setCorrecting(true)} disabled={submitting}>
+            Correct vocabulary tag
+          </button>
+        </div>
+      ) : (
+        <form className="correction-form" onSubmit={submitCorrection}>
+          <label className="correction-field">
+            Correct vocabulary_id
+            <input
+              value={vocabularyId}
+              onChange={(e) => setVocabularyId(e.target.value)}
+              disabled={submitting}
+              autoFocus
+            />
+          </label>
+          <div className="review-actions">
+            <button type="submit" className="review-btn approve-btn" disabled={submitting || !vocabularyId.trim()}>
+              {submitting ? <span className="spinner" /> : "Submit correction"}
+            </button>
+            <button
+              type="button"
+              className="review-btn skip-btn"
+              onClick={() => setCorrecting(false)}
+              disabled={submitting}
+            >
+              Cancel
+            </button>
+          </div>
+        </form>
+      )}
+    </div>
+  );
+}
+
+function DataQualityReviewTab({ highlightConceptId }) {
+  const [items, setItems] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+
+  useEffect(() => {
+    getVocabularyMismatches()
+      .then(setItems)
+      .catch((err) => setError(err.message || "Failed to load data quality queue"))
+      .finally(() => setLoading(false));
+  }, []);
+
+  useEffect(() => {
+    if (!highlightConceptId || !items) return;
+    const el = document.getElementById(`concept-${highlightConceptId}`);
+    el?.scrollIntoView({ behavior: "smooth", block: "center" });
+  }, [highlightConceptId, items]);
+
+  function onResolved(conceptId) {
+    setItems((prev) => prev.filter((i) => i.concept_id !== conceptId));
+  }
+
+  if (error) return <div className="error-box" role="alert"><span className="error-msg">{error}</span></div>;
+  if (loading) return <p className="no-data">Loading data quality queue…</p>;
+
+  return (
+    <section className="data-section full-width">
+      <div className="section-head">
+        <h3>Vocabulary mismatches</h3>
+        <span className="count-chip">{items.length}</span>
+      </div>
+      <p className="no-data" style={{ marginBottom: 12 }}>
+        Concepts where the source code doesn&rsquo;t match its assigned vocabulary under Athena — separate from
+        the needs_review queue in Concept Review; reviewing here never touches that flag.
+      </p>
+      <div className="item-list">
+        {items.length === 0
+          ? <p className="no-data">No vocabulary mismatches pending review.</p>
+          : items.map((item) => (
+            <DataQualityCard
+              key={item.concept_id}
+              item={item}
+              highlighted={item.concept_id === highlightConceptId}
+              onResolved={onResolved}
+            />
+          ))}
+      </div>
+    </section>
+  );
+}
+
 const TABS = [
   { key: "concepts", label: "Concept Review" },
   { key: "duplicates", label: "Duplicate Review" },
+  { key: "data-quality", label: "Data Quality Review" },
 ];
 
 export default function AdminReview() {
-  const [tab, setTab] = useState("concepts");
+  const [searchParams] = useSearchParams();
+  const requestedTab = searchParams.get("tab");
+  const highlightConceptId = searchParams.get("concept");
+  const [tab, setTab] = useState(
+    TABS.some((t) => t.key === requestedTab) ? requestedTab : "concepts"
+  );
 
   return (
     <div className="dashboard admin-review">
@@ -483,6 +642,7 @@ export default function AdminReview() {
       <div className="tab-panel">
         {tab === "concepts" && <ConceptReviewTab />}
         {tab === "duplicates" && <DuplicateReviewTab />}
+        {tab === "data-quality" && <DataQualityReviewTab highlightConceptId={highlightConceptId} />}
       </div>
     </div>
   );

@@ -87,6 +87,15 @@ SYNTHETIC_CLONE_IDS = [
     "synthetic-8f6f9b04-5ff8-4c24-9b66-00fb229dd532",
 ]
 
+# DEMO CODE — the 3 vocabulary_mismatch=TRUE concepts used to test the Admin
+# Review "Data Quality Review" tab, with their original vocabulary_id (a
+# "corrected" action overwrites this, so it needs restoring on reset too).
+VOCABULARY_MISMATCH_CONCEPT_IDS = {
+    "1ffb6684-7856-4819-80a0-659a7cce4502": "LOINC",  # LogMAR visual acuity left eye (observable entity)
+    "979b0c21-b839-4c98-a584-a9eb05be002f": "LOINC",  # LogMAR visual acuity right eye (observable entity)
+    "f9c87cce-607c-4b71-94ef-2fe5e977a42f": "LOINC",  # Operative Status
+}
+
 
 def main():
     with engine.begin() as conn:
@@ -148,6 +157,18 @@ def main():
             WHERE patient_id = ANY(:clone_ids)
         """), {"clone_ids": SYNTHETIC_CLONE_IDS})
         print(f"Reset {result.rowcount} synthetic clones to merge_status='active', merge fields cleared.")
+
+        for concept_id, original_vocabulary_id in VOCABULARY_MISMATCH_CONCEPT_IDS.items():
+            conn.execute(text("""
+                UPDATE concepts
+                SET vocabulary_id               = :vocabulary_id,
+                    vocabulary_mismatch          = TRUE,
+                    vocabulary_review_decision   = NULL,
+                    vocabulary_reviewed_by       = NULL,
+                    vocabulary_reviewed_at       = NULL
+                WHERE concept_id = :concept_id
+            """), {"concept_id": concept_id, "vocabulary_id": original_vocabulary_id})
+        print(f"Reset {len(VOCABULARY_MISMATCH_CONCEPT_IDS)} concepts to vocabulary_mismatch=TRUE, vocabulary review fields cleared.")
 
     print("Demo state reset. Admin Review queues are back to pending.")
 

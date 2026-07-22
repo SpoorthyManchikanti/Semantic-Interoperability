@@ -7,41 +7,80 @@ const PRIORITY_META = {
   low: { label: "Low Priority", className: "priority-low" },
 };
 
+const MEDIUM_DEFAULT_LIMIT = 10;
+
+function ProblemGrid({ problems }) {
+  return (
+    <div className="problem-grid">
+      {problems.map((p, i) => (
+        <div key={i} className="problem-cell">
+          <span className="problem-cell-name" title={p.name}>{p.name}</span>
+          {p.confidence != null && (
+            <span className="badge conf-badge">{p.confidence}%</span>
+          )}
+        </div>
+      ))}
+    </div>
+  );
+}
+
 function ProblemGroup({ priority, problems }) {
-  const [collapsed, setCollapsed] = useState(priority === "low");
   const meta = PRIORITY_META[priority];
+  // Low: collapsed entirely until "Show" is clicked.
+  const [lowOpen, setLowOpen] = useState(false);
+  // Medium: top-N by default, "Show all" expands, no cap the other direction.
+  const [mediumExpanded, setMediumExpanded] = useState(false);
 
   if (problems.length === 0) return null;
 
+  if (priority === "low") {
+    return (
+      <div className={`problem-group ${meta.className}`}>
+        <div className="problem-group-head">
+          <span className="problem-group-title">{meta.label}</span>
+          <span className="count-chip">{problems.length}</span>
+          <button type="button" className="exception-link-btn" onClick={() => setLowOpen((o) => !o)}>
+            {lowOpen ? "Hide" : `Show (${problems.length})`}
+          </button>
+        </div>
+        {lowOpen && <ProblemGrid problems={problems} />}
+      </div>
+    );
+  }
+
+  if (priority === "medium") {
+    const hasMore = problems.length > MEDIUM_DEFAULT_LIMIT;
+    const visible = mediumExpanded ? problems : problems.slice(0, MEDIUM_DEFAULT_LIMIT);
+    return (
+      <div className={`problem-group ${meta.className}`}>
+        <div className="problem-group-head">
+          <span className="problem-group-title">{meta.label}</span>
+          <span className="count-chip">{problems.length}</span>
+          {hasMore && (
+            <button type="button" className="exception-link-btn" onClick={() => setMediumExpanded((e) => !e)}>
+              {mediumExpanded ? "Show top 10" : `Show all (${problems.length})`}
+            </button>
+          )}
+        </div>
+        <ProblemGrid problems={visible} />
+      </div>
+    );
+  }
+
+  // High priority — always shows everything, no truncation, no toggle.
   return (
     <div className={`problem-group ${meta.className}`}>
       <div className="problem-group-head">
         <span className="problem-group-title">{meta.label}</span>
         <span className="count-chip">{problems.length}</span>
-        {priority === "low" && (
-          <button
-            type="button"
-            className="exception-link-btn"
-            onClick={() => setCollapsed((c) => !c)}
-          >
-            {collapsed ? "Show" : "Hide"}
-          </button>
-        )}
       </div>
-      {!collapsed && (
-        <div className="item-list">
-          {problems.map((p, i) => (
-            <div key={i} className="item-card problem-item">
-              <span className="item-name">{p.name}</span>
-              {p.confidence != null && (
-                <span className="badge conf-badge">{p.confidence}% confidence</span>
-              )}
-            </div>
-          ))}
-        </div>
-      )}
+      <ProblemGrid problems={problems} />
     </div>
   );
+}
+
+function normalize(s) {
+  return (s || "").trim().toLowerCase();
 }
 
 export default function AiSummaryTab({ patientId }) {
@@ -117,14 +156,20 @@ export default function AiSummaryTab({ patientId }) {
         <section className="ai-summary-section">
           <h4 className="ai-summary-section-title">Active Medications</h4>
           <ul className="ai-summary-bullet-list">
-            {structured.active_medications.map((m, i) => (
-              <li key={i}>
-                {m.name}
-                {m.omop_standard_name && (
-                  <span className="ai-summary-med-omop"> — OMOP: {m.omop_standard_name}</span>
-                )}
-              </li>
-            ))}
+            {structured.active_medications.map((m, i) => {
+              const isRedundant = m.omop_standard_name && normalize(m.omop_standard_name) === normalize(m.name);
+              return (
+                <li key={i}>
+                  {m.name}
+                  {m.omop_standard_name && isRedundant && (
+                    <span className="badge standardized-badge"> &#10003; Standardized</span>
+                  )}
+                  {m.omop_standard_name && !isRedundant && (
+                    <span className="ai-summary-med-omop"> — OMOP: {m.omop_standard_name}</span>
+                  )}
+                </li>
+              );
+            })}
           </ul>
         </section>
       )}

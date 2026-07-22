@@ -122,6 +122,15 @@ def create_tables():
         conn.execute(text("ALTER TABLE concepts ADD COLUMN IF NOT EXISTS human_corrected_category TEXT;"))
         conn.execute(text("ALTER TABLE concepts ADD COLUMN IF NOT EXISTS human_corrected_subcategory TEXT;"))
 
+        # Data Quality Review (vocabulary_mismatch) audit trail — deliberately
+        # separate columns from reviewed_by/reviewed_at/review_decision above,
+        # since those are the needs_review workflow's columns. Keeping them
+        # apart means acknowledging/correcting a vocabulary mismatch never
+        # touches needs_review, and vice versa.
+        conn.execute(text("ALTER TABLE concepts ADD COLUMN IF NOT EXISTS vocabulary_review_decision TEXT;"))
+        conn.execute(text("ALTER TABLE concepts ADD COLUMN IF NOT EXISTS vocabulary_reviewed_by TEXT;"))
+        conn.execute(text("ALTER TABLE concepts ADD COLUMN IF NOT EXISTS vocabulary_reviewed_at TIMESTAMP;"))
+
         conn.execute(text("""
         CREATE TABLE IF NOT EXISTS patient_concepts (
             id          SERIAL PRIMARY KEY,
