@@ -144,3 +144,21 @@ def get_patient_concepts(patient_id: str):
             raise HTTPException(status_code=404, detail="Patient not found or has no concepts")
 
         return [dict(r._mapping) for r in rows]
+
+
+@router.get("/{patient_id}/concept-relationships")
+def get_patient_concept_relationships(patient_id: str):
+    """Real Athena/OMOP relationships where both ends are this patient's own
+    OMOP-resolved concepts (populated by scripts/populate_concept_relationships.py).
+    Read-only. Returns an empty list for a patient with no populated rows —
+    not a 404, since having zero internal relationships is a legitimate
+    outcome (e.g. Jesus702 Dietrich576 has none)."""
+    with engine.connect() as conn:
+        rows = conn.execute(text("""
+            SELECT concept_id_1, concept_1_name, relationship_id,
+                   concept_id_2, concept_2_name
+            FROM concept_relationships
+            WHERE patient_id = :id
+            ORDER BY concept_1_name, relationship_id
+        """), {"id": patient_id}).fetchall()
+        return [dict(r._mapping) for r in rows]

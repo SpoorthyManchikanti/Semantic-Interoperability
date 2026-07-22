@@ -5,12 +5,10 @@ import "./AppShell.css";
 
 const NAV_ITEMS = [
   { to: "/", label: "Dashboard", end: true },
-  { to: "/patients", label: "Patients" },
-  { to: "/explorer", label: "Semantic Explorer", stub: true },
   { to: "/ontology", label: "Ontology Browser" },
-  { to: "/knowledge-graph", label: "Knowledge Graph", stub: true },
+  { to: "/explorer", label: "Semantic Explorer", stub: true },
   { to: "/admin", label: "Admin Review" },
-  { to: "/data-quality", label: "Data Quality", stub: true },
+  { to: "/patients", label: "Patients" },
 ];
 
 function useBreadcrumbs() {
@@ -32,6 +30,7 @@ export default function AppShell() {
   const crumbs = useBreadcrumbs();
   const navigate = useNavigate();
   const [globalQuery, setGlobalQuery] = useState("");
+  const [navOpen, setNavOpen] = useState(false);
 
   function onGlobalSearch(e) {
     e.preventDefault();
@@ -42,7 +41,9 @@ export default function AppShell() {
 
   return (
     <div className="shell">
-      <aside className="shell-sidebar">
+      {navOpen && <div className="shell-sidebar-backdrop" onClick={() => setNavOpen(false)} />}
+
+      <aside className={`shell-sidebar${navOpen ? " open" : ""}`}>
         <div className="brand">
           <div className="brand-icon">SI</div>
           <div className="brand-text">
@@ -56,6 +57,7 @@ export default function AppShell() {
               key={item.to}
               to={item.to}
               end={item.end}
+              onClick={() => setNavOpen(false)}
               className={({ isActive }) => `shell-nav-item${isActive ? " active" : ""}${item.stub ? " stub" : ""}`}
             >
               {item.label}
@@ -66,6 +68,17 @@ export default function AppShell() {
 
       <div className="shell-body">
         <header className="shell-topbar">
+          <button
+            className="shell-nav-toggle"
+            onClick={() => setNavOpen((open) => !open)}
+            aria-label={navOpen ? "Close navigation menu" : "Open navigation menu"}
+            aria-expanded={navOpen}
+          >
+            <span />
+            <span />
+            <span />
+          </button>
+
           <nav className="breadcrumbs" aria-label="Breadcrumb">
             {crumbs.map((c, i) => (
               <span key={c.to} className="breadcrumb-item">

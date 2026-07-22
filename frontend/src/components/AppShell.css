@@ -188,10 +188,67 @@
   padding: 32px 40px 56px;
 }
 
-@media (max-width: 900px) {
-  .shell-sidebar { width: 64px; }
-  .shell-sidebar .brand-text { display: none; }
-  .shell-nav-item { font-size: 0; padding: 8px; }
+/* ── Hamburger toggle (hidden above the collapse breakpoint) ── */
+
+.shell-nav-toggle {
+  display: none;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  gap: 4px;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  background: none;
+  border: 1px solid var(--rule);
+  border-radius: 3px;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.shell-nav-toggle:hover { border-color: var(--accent); }
+
+.shell-nav-toggle span {
+  display: block;
+  width: 16px;
+  height: 1.5px;
+  background: var(--text-h);
+  border-radius: 1px;
+}
+
+.shell-sidebar-backdrop {
+  display: none;
+}
+
+@media (max-width: 768px) {
+  .shell-nav-toggle { display: flex; }
   .global-search { display: none; }
   .shell-main { padding: 24px 20px 40px; }
+
+  .shell-sidebar {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 260px;
+    max-width: 82vw;
+    z-index: 51;
+    transform: translateX(-100%);
+    transition: transform 0.2s ease-out;
+    background: var(--bg);
+  }
+
+  .shell-sidebar.open {
+    transform: translateX(0);
+  }
+
+  .shell-sidebar .brand-text { display: flex; }
+  .shell-nav-item { font-size: 13px; padding: 8px 10px; }
+
+  .shell-sidebar-backdrop {
+    display: block;
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.35);
+    z-index: 50;
+  }
 }

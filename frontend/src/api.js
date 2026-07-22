@@ -63,6 +63,10 @@ export async function getPatientRelationships(patientId) {
   return getJson(`/patients/${patientId}/relationships`);
 }
 
+export async function getPatientGraph(patientId) {
+  return getJson(`/patients/${patientId}/graph`);
+}
+
 export async function getAiSummary(patientId) {
   return getJson(`/patients/${patientId}/ai-summary`);
 }
