@@ -6,7 +6,7 @@ function statusFor(value, unit) {
   return "bad";
 }
 
-export default function KpiCard({ tag, label, value, unit = "", decimals = 0, status }) {
+export default function KpiCard({ tag, label, value, unit = "", decimals = 0, status, caption }) {
   const resolvedStatus = status ?? statusFor(value, unit);
   const display = value == null ? "—" : value.toFixed(decimals);
   return (
@@ -17,6 +17,7 @@ export default function KpiCard({ tag, label, value, unit = "", decimals = 0, st
       </div>
       <span className="kpi-value">{display}{value != null ? unit : ""}</span>
       <span className="kpi-label">{label}</span>
+      {caption && <span className="kpi-caption">{caption}</span>}
     </div>
   );
 }

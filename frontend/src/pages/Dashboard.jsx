@@ -89,6 +89,9 @@ export default function Dashboard() {
 
         <section className="dashboard-section">
           <h3 className="dashboard-section-title">Platform activity</h3>
+          <p className="dashboard-section-caption">
+            A historical snapshot of the original ingestion run, not a live/ongoing activity stream.
+          </p>
           <ActivityFeed events={activity} />
         </section>
       </div>

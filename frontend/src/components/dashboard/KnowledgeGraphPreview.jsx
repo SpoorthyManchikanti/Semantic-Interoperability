@@ -24,7 +24,7 @@ export default function KnowledgeGraphPreview({ graph }) {
   const data = { nodes: graph.nodes, links: graph.edges.map((e) => ({ source: e.source, target: e.target, relationship: e.relationship })) };
 
   return (
-    <div className="kg-preview" ref={containerRef} onClick={() => navigate("/knowledge-graph")} role="button" tabIndex={0}>
+    <div className="kg-preview" ref={containerRef} onClick={() => navigate("/explorer")} role="button" tabIndex={0}>
       <ForceGraph2D
         graphData={data}
         width={width}
@@ -38,7 +38,7 @@ export default function KnowledgeGraphPreview({ graph }) {
         enableZoomInteraction={false}
         enablePanInteraction={false}
       />
-      <span className="kg-preview-hint">Click to open full Knowledge Graph &#8594;</span>
+      <span className="kg-preview-hint">Click to explore concepts and relationships &#8594;</span>
     </div>
   );
 }
