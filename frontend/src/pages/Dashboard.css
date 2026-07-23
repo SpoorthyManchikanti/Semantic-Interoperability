@@ -219,7 +219,12 @@
   padding: 9px 0;
   border-bottom: 1px solid var(--rule-light);
 }
-.activity-row:last-child { border-bottom: none; }
+.activity-row:last-of-type { border-bottom: none; }
+
+.activity-toggle-btn {
+  margin-top: 6px;
+  padding-left: 0;
+}
 
 .activity-badge {
   font-size: 10px;

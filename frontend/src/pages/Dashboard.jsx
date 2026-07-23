@@ -22,7 +22,7 @@ export default function Dashboard() {
     Promise.all([
       getDashboardSummary(),
       getDashboardPipeline(),
-      getActivity(12),
+      getActivity(50),
       getGraphPreview(30),
     ])
       .then(([s, p, a, g]) => {

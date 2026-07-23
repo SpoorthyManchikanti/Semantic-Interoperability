@@ -1,7 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.routes import patients, conditions, concepts, dashboard, graph, ai_summary, patient_matches, patient_concepts
+from app.routes import patients, conditions, concepts, dashboard, graph, ai_summary, patient_matches, patient_concepts, ingest
 
 app = FastAPI()
 
@@ -21,6 +21,7 @@ app.include_router(dashboard.router)
 app.include_router(graph.router)
 app.include_router(ai_summary.router)
 app.include_router(patient_concepts.router)
+app.include_router(ingest.router)
 
 
 @app.get("/")

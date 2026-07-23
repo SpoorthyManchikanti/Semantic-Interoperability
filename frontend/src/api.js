@@ -118,3 +118,18 @@ export async function reviewPatientMatch(matchId, body) {
 export async function flagPatientConceptException(patientConceptId, body) {
   return patchJson(`/patient-concepts/${patientConceptId}/exception`, body);
 }
+
+export async function startIngestion(file) {
+  const formData = new FormData();
+  formData.append("file", file);
+  const response = await fetch(`${API}/ingest/start`, { method: "POST", body: formData });
+  if (!response.ok) {
+    const err = await response.json().catch(() => ({}));
+    throw new Error(err.detail || `Request failed (${response.status})`);
+  }
+  return response.json();
+}
+
+export async function getIngestionStatus(jobId) {
+  return getJson(`/ingest/${jobId}`);
+}

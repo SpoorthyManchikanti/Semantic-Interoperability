@@ -1,6 +1,8 @@
 """Semantic concepts endpoints."""
 
+import json
 from datetime import datetime, timezone
+from pathlib import Path
 from typing import List, Literal, Optional
 
 from fastapi import APIRouter, HTTPException
@@ -43,6 +45,35 @@ DEMO_SUBSET_PATIENT_IDS = [
     "ab683cb7-419f-9426-9183-a394af834440",
     "d2a30bc4-15fe-4cc8-a3ab-fbb824dbff33",
 ]
+
+# Patients onboarded through the live /ingest pipeline are appended here at
+# runtime (see register_ingested_patient below) so their flagged concepts
+# show up in Admin Review with no special-casing, without diluting the
+# curated demo subset above. Persisted to disk so the list survives a
+# backend restart (this app has no multi-worker/reload concerns — see
+# ingest.py's JOBS store for the same reasoning).
+_INGESTED_SUBSET_FILE = Path(__file__).resolve().parent / "_ingested_patient_subset.json"
+
+
+def _load_ingested_subset():
+    if _INGESTED_SUBSET_FILE.exists():
+        return json.loads(_INGESTED_SUBSET_FILE.read_text(encoding="utf-8"))
+    return []
+
+
+def register_ingested_patient(patient_id: str):
+    """Add a newly /ingest-onboarded patient to the demo subset so their
+    flagged concepts/vocabulary mismatches appear in Admin Review."""
+    current = _load_ingested_subset()
+    if patient_id not in current:
+        current.append(patient_id)
+        _INGESTED_SUBSET_FILE.write_text(json.dumps(current), encoding="utf-8")
+        DEMO_SUBSET_PATIENT_IDS.append(patient_id)
+
+
+DEMO_SUBSET_PATIENT_IDS.extend(
+    pid for pid in _load_ingested_subset() if pid not in DEMO_SUBSET_PATIENT_IDS
+)
 
 
 # DEMO CODE — filters to the hardcoded demo subset above rather than all patients.

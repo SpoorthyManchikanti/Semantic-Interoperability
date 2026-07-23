@@ -6,6 +6,7 @@ import PatientDetail from "./pages/PatientDetail";
 import AdminReview from "./pages/AdminReview";
 import OntologyBrowser from "./pages/OntologyBrowser";
 import SemanticExplorer from "./pages/SemanticExplorer";
+import Ingest from "./pages/Ingest";
 import ComingSoon from "./pages/ComingSoon";
 import "./App.css";
 
@@ -22,6 +23,7 @@ export default function App() {
         <Route path="/patients" element={<PatientSearch />} />
         <Route path="/patients/:patientId" element={<PatientDetail />} />
         <Route path="/admin" element={<AdminReview />} />
+        <Route path="/ingest" element={<Ingest />} />
         <Route path="/ontology" element={<OntologyBrowser />} />
         <Route path="/explorer" element={<SemanticExplorer />} />
         {STUBS.map((s) => (
