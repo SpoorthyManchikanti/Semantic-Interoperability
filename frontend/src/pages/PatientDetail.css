@@ -6,7 +6,7 @@
   display: flex;
   gap: 4px;
   border-bottom: 1px solid var(--rule);
-  margin-bottom: 24px;
+  margin-bottom: 16px;
   overflow-x: auto;
 }
 
@@ -14,7 +14,7 @@
   background: none;
   border: none;
   border-bottom: 2px solid transparent;
-  padding: 10px 14px;
+  padding: 8px 14px;
   font-size: 13px;
   font-family: var(--sans);
   color: var(--text);
@@ -85,6 +85,49 @@
 .status-mapped { color: var(--success); background: transparent; }
 .status-flagged { color: var(--warning); background: transparent; }
 
+/* ── Risk flag callout ── */
+
+.risk-flag-callout {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  border-left: 2px solid var(--brass);
+  padding: 8px 14px;
+  margin-bottom: 16px;
+}
+
+.risk-flag-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  font-size: 13px;
+  color: var(--text-h);
+}
+
+.risk-flag-icon {
+  color: var(--brass);
+  flex-shrink: 0;
+  font-size: 13px;
+  margin-top: 1px;
+}
+
+.risk-flag-text { flex: 1; }
+
+.risk-flag-clickable {
+  width: 100%;
+  background: none;
+  border: none;
+  padding: 0;
+  margin: 0;
+  cursor: pointer;
+  text-align: left;
+  font-family: var(--sans);
+  border-radius: 3px;
+  transition: background 0.15s;
+}
+.risk-flag-clickable:hover { background: var(--surface); }
+.risk-flag-clickable:hover .risk-flag-text { color: var(--accent); }
+
 .semantic-card-omop {
   display: flex;
   align-items: center;
@@ -153,33 +196,7 @@
 }
 .view-ontology-btn:hover { text-decoration: underline; }
 
-/* ── Ontology / graph ── */
-
-.ontology-caption {
-  font-size: 12.5px;
-  color: var(--text);
-  line-height: 1.6;
-  max-width: 720px;
-  margin: 0 0 16px;
-}
-
-.ontology-legend {
-  display: flex;
-  gap: 16px;
-  font-size: 12px;
-  color: var(--text);
-  margin-bottom: 12px;
-}
-
-.ontology-legend span { display: inline-flex; align-items: center; gap: 6px; }
-.ontology-legend i { width: 8px; height: 8px; border-radius: 50%; display: inline-block; }
-
-.ontology-graph {
-  border: 1px solid var(--rule);
-  border-radius: 6px;
-  overflow: hidden;
-  background: var(--surface);
-}
+/* ── Ontology / graph — shared rules now live in components/graph/RelationshipGraph.css ── */
 
 /* ── Timeline ── */
 
@@ -226,14 +243,99 @@
 
 /* ── AI summary ── */
 
-.ai-summary { max-width: 720px; }
+.ai-summary { max-width: 960px; }
 
 .ai-summary-confidence { margin-bottom: 12px; }
+
+.ai-summary-section {
+  margin-bottom: 22px;
+}
+
+.ai-summary-section-title {
+  font-size: 13px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--text-h);
+  margin: 0 0 10px;
+  padding-bottom: 6px;
+  border-bottom: 1px solid var(--rule-light);
+}
+
+.ai-summary-bullet-list {
+  margin: 0;
+  padding-left: 18px;
+  font-size: 13px;
+  color: var(--text-h);
+  line-height: 1.7;
+}
+
+.ai-summary-med-omop {
+  color: var(--text);
+  font-size: 12px;
+}
+
+.problem-group {
+  padding-left: 10px;
+  border-left: 2px solid var(--rule);
+  margin-bottom: 14px;
+}
+
+.problem-group:last-child { margin-bottom: 0; }
+
+.problem-group.priority-high { border-left-color: var(--critical); }
+.problem-group.priority-medium { border-left-color: var(--rule); }
+.problem-group.priority-low { border-left-color: var(--rule-light); opacity: 0.75; }
+
+.problem-group-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 4px;
+}
+
+.problem-group-title {
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  color: var(--text-h);
+}
+
+.priority-high .problem-group-title { color: var(--critical); }
+
+.problem-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
+  gap: 2px 16px;
+}
+
+.problem-cell {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 4px 0;
+  border-bottom: 1px solid var(--rule-light);
+  min-width: 0;
+}
+
+.problem-cell-name {
+  font-size: 12.5px;
+  color: var(--text-h);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+}
+
+.standardized-badge { color: var(--success); background: transparent; }
 
 .ai-summary-text {
   font-size: 13.5px;
   line-height: 1.75;
   color: var(--text-h);
+  max-width: 680px;
 }
 
 .ai-summary-skeleton { max-width: 720px; }

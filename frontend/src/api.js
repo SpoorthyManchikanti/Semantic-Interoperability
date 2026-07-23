@@ -30,8 +30,12 @@ export async function getPatientConcepts(patientId) {
   return getJson(`/patients/${patientId}/concepts`);
 }
 
-export async function listPatients(limit = 10, offset = 0) {
-  return getJson(`/patients/?limit=${limit}&offset=${offset}`);
+export async function listPatients(limit = 10, offset = 0, excludeDemoSubset = false) {
+  return getJson(`/patients/?limit=${limit}&offset=${offset}${excludeDemoSubset ? "&exclude_demo_subset=true" : ""}`);
+}
+
+export async function getDemoSubsetPatients() {
+  return getJson(`/patients/demo-subset`);
 }
 
 export async function searchPatients(params = {}) {
@@ -63,8 +67,16 @@ export async function getPatientRelationships(patientId) {
   return getJson(`/patients/${patientId}/relationships`);
 }
 
+export async function getPatientGraph(patientId) {
+  return getJson(`/patients/${patientId}/graph`);
+}
+
 export async function getAiSummary(patientId) {
   return getJson(`/patients/${patientId}/ai-summary`);
+}
+
+export async function getPatientRiskFlags(patientId) {
+  return getJson(`/patients/${patientId}/risk-flags`);
 }
 
 export async function getConcepts() {
@@ -77,6 +89,26 @@ export async function getNeedsReviewConcepts() {
 
 export async function getOmopResolution() {
   return getJson(`/concepts/omop-resolution`);
+}
+
+export async function getVocabularyMismatches() {
+  return getJson(`/concepts/vocabulary-mismatches`);
+}
+
+export async function reviewVocabularyMismatch(conceptId, body) {
+  return patchJson(`/concepts/${conceptId}/vocabulary-review`, body);
+}
+
+export async function searchConcepts(q) {
+  return getJson(`/concepts/search?q=${encodeURIComponent(q)}`);
+}
+
+export async function getFeaturedConcepts(limit = 20) {
+  return getJson(`/concepts/featured?limit=${limit}`);
+}
+
+export async function getConceptGraph(conceptId) {
+  return getJson(`/concepts/${conceptId}/graph`);
 }
 
 export async function reviewConcept(conceptId, body) {
@@ -93,4 +125,19 @@ export async function reviewPatientMatch(matchId, body) {
 
 export async function flagPatientConceptException(patientConceptId, body) {
   return patchJson(`/patient-concepts/${patientConceptId}/exception`, body);
+}
+
+export async function startIngestion(file) {
+  const formData = new FormData();
+  formData.append("file", file);
+  const response = await fetch(`${API}/ingest/start`, { method: "POST", body: formData });
+  if (!response.ok) {
+    const err = await response.json().catch(() => ({}));
+    throw new Error(err.detail || `Request failed (${response.status})`);
+  }
+  return response.json();
+}
+
+export async function getIngestionStatus(jobId) {
+  return getJson(`/ingest/${jobId}`);
 }

@@ -122,6 +122,15 @@ def create_tables():
         conn.execute(text("ALTER TABLE concepts ADD COLUMN IF NOT EXISTS human_corrected_category TEXT;"))
         conn.execute(text("ALTER TABLE concepts ADD COLUMN IF NOT EXISTS human_corrected_subcategory TEXT;"))
 
+        # Data Quality Review (vocabulary_mismatch) audit trail — deliberately
+        # separate columns from reviewed_by/reviewed_at/review_decision above,
+        # since those are the needs_review workflow's columns. Keeping them
+        # apart means acknowledging/correcting a vocabulary mismatch never
+        # touches needs_review, and vice versa.
+        conn.execute(text("ALTER TABLE concepts ADD COLUMN IF NOT EXISTS vocabulary_review_decision TEXT;"))
+        conn.execute(text("ALTER TABLE concepts ADD COLUMN IF NOT EXISTS vocabulary_reviewed_by TEXT;"))
+        conn.execute(text("ALTER TABLE concepts ADD COLUMN IF NOT EXISTS vocabulary_reviewed_at TIMESTAMP;"))
+
         conn.execute(text("""
         CREATE TABLE IF NOT EXISTS patient_concepts (
             id          SERIAL PRIMARY KEY,
@@ -186,6 +195,28 @@ def create_tables():
             source              TEXT,  -- 'omop', 'llm'
             created_at          TIMESTAMP DEFAULT NOW()
         );
+        """))
+
+        # Additive columns for real, patient-scoped Athena/OMOP relationships
+        # (populated by scripts/populate_concept_relationships.py) — distinct
+        # from source_concept_id/target_concept_id above, which are local
+        # concepts.concept_id UUIDs, not OMOP concept IDs, and were never
+        # populated by anything. These new columns store genuine
+        # (non-self-referential) Athena_Concept_Relationships rows where both
+        # ends are in one patient's own OMOP-resolved concept set.
+        conn.execute(text("ALTER TABLE concept_relationships ADD COLUMN IF NOT EXISTS patient_id TEXT;"))
+        conn.execute(text("ALTER TABLE concept_relationships ADD COLUMN IF NOT EXISTS concept_id_1 TEXT;"))
+        conn.execute(text("ALTER TABLE concept_relationships ADD COLUMN IF NOT EXISTS concept_id_2 TEXT;"))
+        conn.execute(text("ALTER TABLE concept_relationships ADD COLUMN IF NOT EXISTS relationship_id TEXT;"))
+        conn.execute(text("ALTER TABLE concept_relationships ADD COLUMN IF NOT EXISTS concept_1_name TEXT;"))
+        conn.execute(text("ALTER TABLE concept_relationships ADD COLUMN IF NOT EXISTS concept_2_name TEXT;"))
+        conn.execute(text("""
+            DO $$ BEGIN
+                ALTER TABLE concept_relationships
+                ADD CONSTRAINT concept_relationships_patient_pair_rel_unique
+                UNIQUE (patient_id, concept_id_1, concept_id_2, relationship_id);
+            EXCEPTION WHEN duplicate_object THEN NULL;
+            END $$;
         """))
 
         # ----------------------------------------------------------------

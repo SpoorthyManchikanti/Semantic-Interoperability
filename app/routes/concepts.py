@@ -1,9 +1,11 @@
 """Semantic concepts endpoints."""
 
+import json
 from datetime import datetime, timezone
+from pathlib import Path
 from typing import List, Literal, Optional
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel
 from sqlalchemy import text
 from app.database import engine
@@ -17,6 +19,12 @@ class ConceptReviewRequest(BaseModel):
     corrected_subcategory: Optional[str] = None
     reviewed_by: str
     patient_concept_ids: Optional[List[int]] = None
+
+
+class VocabularyReviewRequest(BaseModel):
+    decision: Literal["acknowledged", "corrected"]
+    corrected_vocabulary_id: Optional[str] = None
+    reviewed_by: str
 
 # DEMO CODE — hardcoded to the 15-patient demo subset selected for the
 # richest concept coverage; not a general-purpose patient filter.
@@ -37,6 +45,47 @@ DEMO_SUBSET_PATIENT_IDS = [
     "ab683cb7-419f-9426-9183-a394af834440",
     "d2a30bc4-15fe-4cc8-a3ab-fbb824dbff33",
 ]
+
+# Patients onboarded through the live /ingest pipeline are appended here at
+# runtime (see register_ingested_patient below) so their flagged concepts
+# show up in Admin Review with no special-casing, without diluting the
+# curated demo subset above. Persisted to disk so the list survives a
+# backend restart (this app has no multi-worker/reload concerns — see
+# ingest.py's JOBS store for the same reasoning).
+_INGESTED_SUBSET_FILE = Path(__file__).resolve().parent / "_ingested_patient_subset.json"
+
+
+def _load_ingested_subset():
+    if _INGESTED_SUBSET_FILE.exists():
+        return json.loads(_INGESTED_SUBSET_FILE.read_text(encoding="utf-8"))
+    return []
+
+
+def register_ingested_patient(patient_id: str):
+    """Add a newly /ingest-onboarded patient to the demo subset so their
+    flagged concepts/vocabulary mismatches appear in Admin Review."""
+    current = _load_ingested_subset()
+    if patient_id not in current:
+        current.append(patient_id)
+        _INGESTED_SUBSET_FILE.write_text(json.dumps(current), encoding="utf-8")
+        DEMO_SUBSET_PATIENT_IDS.append(patient_id)
+
+
+def unregister_ingested_patient(patient_id: str):
+    """Counterpart to register_ingested_patient — used by
+    DELETE /ingest/batches/{batch_id} to undo the Admin Review visibility
+    grant when a batch is rolled back."""
+    current = _load_ingested_subset()
+    if patient_id in current:
+        current.remove(patient_id)
+        _INGESTED_SUBSET_FILE.write_text(json.dumps(current), encoding="utf-8")
+    if patient_id in DEMO_SUBSET_PATIENT_IDS:
+        DEMO_SUBSET_PATIENT_IDS.remove(patient_id)
+
+
+DEMO_SUBSET_PATIENT_IDS.extend(
+    pid for pid in _load_ingested_subset() if pid not in DEMO_SUBSET_PATIENT_IDS
+)
 
 
 # DEMO CODE — filters to the hardcoded demo subset above rather than all patients.
@@ -241,6 +290,7 @@ def get_omop_resolution():
 
         unresolved_rows = conn.execute(text("""
             SELECT
+                con.concept_id,
                 con.concept_name,
                 con.source_type,
                 con.vocabulary_id,
@@ -280,14 +330,204 @@ def get_omop_resolution():
         }
 
 
+# DEMO CODE — filters to the hardcoded demo subset above rather than all patients.
+@router.get("/vocabulary-mismatches")
+def get_vocabulary_mismatches():
+    """Concepts flagged vocabulary_mismatch=true (a real code/vocabulary_id
+    disagreement caught by Athena cross-reference) that still need a human
+    decision — drops out once acknowledged or corrected via
+    PATCH /concepts/{id}/vocabulary-review.
+
+    Deliberately independent of needs_review: this queue never reads or
+    writes it, and reviewing a vocabulary mismatch here does not resolve
+    (or need to resolve) anything in GET /concepts/needs-review, since the
+    two flags catch different problems — a code/vocabulary disagreement here
+    vs. Agent 1's own classification confidence there."""
+    with engine.connect() as conn:
+        rows = conn.execute(text("""
+            SELECT
+                con.concept_id,
+                con.concept_name,
+                con.vocabulary_id,
+                con.vocabulary_code,
+                COUNT(DISTINCT pc.patient_id) AS affected_patient_count,
+                'vocabulary_code ''' || COALESCE(con.vocabulary_code, '') ||
+                    ''' has no matching Athena concept under vocabulary_id ''' ||
+                    COALESCE(con.vocabulary_id, '') ||
+                    ''' - code and vocabulary label disagree' AS reason
+            FROM concepts con
+            JOIN patient_concepts pc ON pc.concept_id = con.concept_id
+            WHERE con.vocabulary_mismatch = TRUE
+              AND con.vocabulary_review_decision IS NULL
+              AND pc.patient_id = ANY(:patient_ids)
+            GROUP BY con.concept_id, con.concept_name, con.vocabulary_id, con.vocabulary_code
+            ORDER BY con.concept_name
+        """), {"patient_ids": DEMO_SUBSET_PATIENT_IDS}).fetchall()
+        return [dict(r._mapping) for r in rows]
+
+
+@router.patch("/{concept_id}/vocabulary-review")
+def review_vocabulary_mismatch(concept_id: str, body: VocabularyReviewRequest):
+    """Record a human decision on a vocabulary_mismatch concept.
+
+    Never reads or writes needs_review/review_decision/reviewed_by/reviewed_at
+    — those belong to the separate needs_review workflow
+    (PATCH /concepts/{id}/review). This endpoint has its own audit columns
+    (vocabulary_review_decision/vocabulary_reviewed_by/vocabulary_reviewed_at)
+    so the two review flows can never conflate or overwrite each other.
+
+    - 'acknowledged': marks it reviewed, no data change — a known, accepted
+      issue (e.g. a Synthea-generated code with no real Athena equivalent).
+    - 'corrected': requires corrected_vocabulary_id; overwrites
+      concepts.vocabulary_id and clears vocabulary_mismatch, so the concept
+      naturally drops out of both this queue and Ontology Browser's
+      unresolved-concepts list."""
+    with engine.begin() as conn:
+        existing = conn.execute(text(
+            "SELECT concept_id, vocabulary_mismatch FROM concepts WHERE concept_id = :id"
+        ), {"id": concept_id}).fetchone()
+        if not existing:
+            raise HTTPException(status_code=404, detail="Concept not found")
+        if not existing.vocabulary_mismatch:
+            raise HTTPException(status_code=400, detail="Concept is not flagged vocabulary_mismatch")
+
+        reviewed_at = datetime.now(timezone.utc)
+
+        if body.decision == "corrected":
+            if not body.corrected_vocabulary_id:
+                raise HTTPException(
+                    status_code=400,
+                    detail="corrected_vocabulary_id is required for decision='corrected'",
+                )
+            conn.execute(text("""
+                UPDATE concepts
+                SET vocabulary_id = :vocabulary_id,
+                    vocabulary_mismatch = FALSE,
+                    vocabulary_review_decision = :decision,
+                    vocabulary_reviewed_by = :reviewed_by,
+                    vocabulary_reviewed_at = :reviewed_at
+                WHERE concept_id = :concept_id
+            """), {
+                "vocabulary_id": body.corrected_vocabulary_id,
+                "decision": body.decision,
+                "reviewed_by": body.reviewed_by,
+                "reviewed_at": reviewed_at,
+                "concept_id": concept_id,
+            })
+        else:
+            conn.execute(text("""
+                UPDATE concepts
+                SET vocabulary_review_decision = :decision,
+                    vocabulary_reviewed_by = :reviewed_by,
+                    vocabulary_reviewed_at = :reviewed_at
+                WHERE concept_id = :concept_id
+            """), {
+                "decision": body.decision,
+                "reviewed_by": body.reviewed_by,
+                "reviewed_at": reviewed_at,
+                "concept_id": concept_id,
+            })
+
+        row = conn.execute(text("""
+            SELECT concept_id, concept_name, vocabulary_id, vocabulary_mismatch,
+                   vocabulary_review_decision, vocabulary_reviewed_by, vocabulary_reviewed_at
+            FROM concepts WHERE concept_id = :concept_id
+        """), {"concept_id": concept_id}).fetchone()
+        return dict(row._mapping)
+
+
+@router.get("/featured")
+def get_featured_concepts(limit: int = Query(20, ge=1, le=100)):
+    """Default set for Semantic Explorer's landing state (no query typed
+    yet) — same row shape as GET /concepts/search, so the frontend can
+    render either through the identical ResultRow/ConceptDetailPanel with
+    no special-casing.
+
+    Concepts with a real documented clinical relationship (a row in
+    concept_relationships, resolved back from OMOP concept_id_1/2 to this
+    concept's own omop_concept_id) are surfaced first, since those are the
+    most interesting to click into; remaining slots are filled by patient
+    count, so the rest of the list is common conditions/medications/
+    observations rather than obscure one-off concepts.
+    """
+    with engine.connect() as conn:
+        rows = conn.execute(text("""
+            WITH concept_stats AS (
+                SELECT
+                    con.concept_id, con.concept_name, con.vocabulary_id,
+                    con.category, con.subcategory, con.omop_standard_name,
+                    con.omop_domain, con.omop_concept_id,
+                    COUNT(DISTINCT pc.patient_id) AS patient_count
+                FROM concepts con
+                JOIN patient_concepts pc ON pc.concept_id = con.concept_id
+                GROUP BY con.concept_id, con.concept_name, con.vocabulary_id,
+                         con.category, con.subcategory, con.omop_standard_name,
+                         con.omop_domain, con.omop_concept_id
+            ),
+            with_relationships AS (
+                SELECT DISTINCT cs.concept_id
+                FROM concept_stats cs
+                JOIN concept_relationships cr
+                    ON cr.concept_id_1 = cs.omop_concept_id OR cr.concept_id_2 = cs.omop_concept_id
+            )
+            SELECT
+                cs.concept_id, cs.concept_name, cs.vocabulary_id, cs.category,
+                cs.subcategory, cs.omop_standard_name, cs.omop_domain, cs.patient_count
+            FROM concept_stats cs
+            ORDER BY (cs.concept_id IN (SELECT concept_id FROM with_relationships)) DESC,
+                     cs.patient_count DESC
+            LIMIT :limit
+        """), {"limit": limit}).fetchall()
+        return [dict(row._mapping) for row in rows]
+
+
+@router.get("/search")
+def search_concepts(q: str):
+    """Search across all 542 concepts (every patient, not just the 15-patient
+    demo subset) by concept name, vocabulary_code, or Athena synonym.
+
+    Synonym matching only fires for the 341/542 concepts that have resolved
+    an omop_concept_id (the other 201 simply fall back to name/code
+    matching, via the LEFT JOIN below) — extending OMOP enrichment to those
+    201 is a separate, slower pipeline re-run and isn't needed for search
+    coverage: every concept remains matchable by name/code regardless.
+    """
+    if not q or not q.strip():
+        return []
+    term = f"%{q.strip()}%"
+    with engine.connect() as conn:
+        rows = conn.execute(text("""
+            SELECT
+                con.concept_id,
+                con.concept_name,
+                con.vocabulary_id,
+                con.category,
+                con.subcategory,
+                con.omop_standard_name,
+                con.omop_domain,
+                COUNT(DISTINCT pc.patient_id) AS patient_count
+            FROM concepts con
+            LEFT JOIN patient_concepts pc ON pc.concept_id = con.concept_id
+            LEFT JOIN "Athena_Concept_Synonyms" syn ON syn.concept_id = con.omop_concept_id
+            WHERE con.concept_name ILIKE :term
+               OR con.vocabulary_code ILIKE :term
+               OR syn.concept_synonym_name ILIKE :term
+            GROUP BY con.concept_id, con.concept_name, con.vocabulary_id,
+                     con.category, con.subcategory, con.omop_standard_name, con.omop_domain
+            ORDER BY con.concept_name
+            LIMIT 50
+        """), {"term": term}).fetchall()
+        return [dict(r._mapping) for r in rows]
+
+
 @router.get("/")
 def list_concepts():
     """List all classified concepts."""
     with engine.connect() as conn:
         rows = conn.execute(text("""
-            SELECT concept_id, concept_name, source_type, category, 
+            SELECT concept_id, concept_name, source_type, category,
                    subcategory, confidence, vocabulary_code, vocabulary_id,
-                   needs_review
+                   omop_concept_id, needs_review
             FROM concepts
             ORDER BY source_type, category, concept_name
         """)).fetchall()

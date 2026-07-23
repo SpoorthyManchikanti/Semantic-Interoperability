@@ -357,15 +357,15 @@ kbd {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
   gap: 1px;
-  margin-bottom: 40px;
+  margin-bottom: 22px;
   background: var(--rule-light);
 }
 
 .stat-tile {
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  padding: 28px;
+  gap: 6px;
+  padding: 16px;
   background: var(--surface);
 }
 

@@ -1,10 +1,13 @@
 import { useEffect, useMemo, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import {
   getNeedsReviewConcepts,
   reviewConcept,
   flagPatientConceptException,
   getPatientMatches,
   reviewPatientMatch,
+  getVocabularyMismatches,
+  reviewVocabularyMismatch,
 } from "../api";
 import "./AdminReview.css";
 
@@ -236,6 +239,25 @@ function ConceptReviewTab() {
   const [exceptionCount, setExceptionCount] = useState(0);
   const [panel, setPanel] = useState(null); // { conceptId, decision } | null
 
+  // Independent filters — patient-deep-link (from the URL, e.g. arriving via
+  // Patient Detail's "N concepts pending review" callout), free-text concept
+  // name search, category dropdown, and a confidence % range. All combine
+  // with AND, so e.g. a patient deep-link plus a search term narrows further.
+  const [searchParams, setSearchParams] = useSearchParams();
+  const patientFilterId = searchParams.get("patient");
+  const [searchText, setSearchText] = useState("");
+  const [categoryFilter, setCategoryFilter] = useState("");
+  const [confidenceMin, setConfidenceMin] = useState(0);
+  const [confidenceMax, setConfidenceMax] = useState(100);
+
+  function clearPatientFilter() {
+    setSearchParams((prev) => {
+      const next = new URLSearchParams(prev);
+      next.delete("patient");
+      return next;
+    });
+  }
+
   useEffect(() => {
     getNeedsReviewConcepts()
       .then(setConcepts)
@@ -285,6 +307,40 @@ function ConceptReviewTab() {
     return Array.from(map.values());
   }, [concepts]);
 
+  // Distinct categories actually present in the queue right now — options
+  // are always drawn from the full unfiltered `groups`, not the narrowed
+  // result, so picking a category never removes other categories from the
+  // dropdown out from under the user.
+  const categories = useMemo(() => {
+    return [...new Set(groups.map((g) => g.category).filter(Boolean))].sort();
+  }, [groups]);
+
+  // Resolved from the queue data itself (no extra API call) — the first
+  // matching patient's name found across any group.
+  const patientFilterName = useMemo(() => {
+    if (!patientFilterId) return null;
+    for (const g of groups) {
+      const match = g.patients.find((p) => p.patient_id === patientFilterId);
+      if (match) return `${match.patient_first_name} ${match.patient_last_name}`;
+    }
+    return null;
+  }, [groups, patientFilterId]);
+
+  // All filters combine with AND.
+  const filteredGroups = useMemo(() => {
+    const term = searchText.trim().toLowerCase();
+    return groups.filter((g) => {
+      if (patientFilterId && !g.patients.some((p) => p.patient_id === patientFilterId)) return false;
+      if (term && !g.concept_name.toLowerCase().includes(term)) return false;
+      if (categoryFilter && g.category !== categoryFilter) return false;
+      if (g.confidence != null) {
+        const pct = g.confidence * 100;
+        if (pct < confidenceMin || pct > confidenceMax) return false;
+      }
+      return true;
+    });
+  }, [groups, patientFilterId, searchText, categoryFilter, confidenceMin, confidenceMax]);
+
   // Derived live from `groups` rather than snapshotted at open time, so a
   // patient flagged as an exception from inside the panel disappears from
   // the checkbox list immediately instead of lingering until reopened.
@@ -303,17 +359,75 @@ function ConceptReviewTab() {
     <section className="data-section full-width">
       <div className="section-head">
         <h3>Concepts needing review</h3>
-        <span className="count-chip">{groups.length}</span>
+        <span className="count-chip">Showing {filteredGroups.length} of {groups.length} concepts</span>
       </div>
       {exceptionCount > 0 && (
         <p className="no-data exception-summary">
           {exceptionCount} flagged as patient-specific exceptions
         </p>
       )}
+
+      {patientFilterId && (
+        <div className="concept-patient-filter-banner">
+          <span>Showing concepts for <strong>{patientFilterName || "selected patient"}</strong></span>
+          <button type="button" className="exception-link-btn" onClick={clearPatientFilter}>
+            Clear filter
+          </button>
+        </div>
+      )}
+
+      <div className="concept-filter-bar">
+        <input
+          type="text"
+          className="search-input concept-filter-search"
+          placeholder="Search concept name..."
+          value={searchText}
+          onChange={(e) => setSearchText(e.target.value)}
+        />
+        <select
+          className="concept-filter-select"
+          value={categoryFilter}
+          onChange={(e) => setCategoryFilter(e.target.value)}
+          aria-label="Filter by category"
+        >
+          <option value="">All categories</option>
+          {categories.map((c) => <option key={c} value={c}>{c}</option>)}
+        </select>
+        <div className="concept-filter-confidence">
+          <label>
+            Min confidence
+            <input
+              type="number"
+              min={0}
+              max={100}
+              value={confidenceMin}
+              onChange={(e) => setConfidenceMin(Number(e.target.value))}
+            />
+          </label>
+          <span className="concept-filter-confidence-sep">–</span>
+          <label>
+            Max confidence
+            <input
+              type="number"
+              min={0}
+              max={100}
+              value={confidenceMax}
+              onChange={(e) => setConfidenceMax(Number(e.target.value))}
+            />
+          </label>
+        </div>
+      </div>
+
       <div className="item-list">
-        {groups.length === 0
-          ? <p className="no-data">No concepts pending review — queue is empty.</p>
-          : groups.map((g) => (
+        {filteredGroups.length === 0
+          ? (
+            <p className="no-data">
+              {groups.length === 0
+                ? "No concepts pending review — queue is empty."
+                : "No concepts match the current filters."}
+            </p>
+          )
+          : filteredGroups.map((g) => (
             <ConceptGroupCard
               key={g.concept_id}
               group={g}
@@ -449,21 +563,178 @@ function DuplicateReviewTab() {
   );
 }
 
+function DataQualityCard({ item, highlighted, onResolved }) {
+  const [correcting, setCorrecting] = useState(false);
+  const [vocabularyId, setVocabularyId] = useState(item.vocabulary_id ?? "");
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState(null);
+
+  async function submitAcknowledge() {
+    setSubmitting(true);
+    setError(null);
+    try {
+      await reviewVocabularyMismatch(item.concept_id, { decision: "acknowledged", reviewed_by: REVIEWED_BY });
+      onResolved(item.concept_id);
+    } catch (err) {
+      setError(err.message || "Failed to acknowledge");
+      setSubmitting(false);
+    }
+  }
+
+  async function submitCorrection(e) {
+    e.preventDefault();
+    if (!vocabularyId.trim()) return;
+    setSubmitting(true);
+    setError(null);
+    try {
+      await reviewVocabularyMismatch(item.concept_id, {
+        decision: "corrected",
+        corrected_vocabulary_id: vocabularyId.trim(),
+        reviewed_by: REVIEWED_BY,
+      });
+      onResolved(item.concept_id);
+    } catch (err) {
+      setError(err.message || "Failed to submit correction");
+      setSubmitting(false);
+    }
+  }
+
+  return (
+    <div
+      id={`concept-${item.concept_id}`}
+      className={`item-card review-card${highlighted ? " dq-card-highlighted" : ""}`}
+    >
+      <div className="review-card-head">
+        <span className="item-name"><span className="name-text">{item.concept_name}</span></span>
+      </div>
+
+      <div className="item-badges">
+        <span className="badge cat-badge">{item.vocabulary_id}: {item.vocabulary_code}</span>
+        <span className="badge subcat-badge">
+          Affects {item.affected_patient_count} patient{item.affected_patient_count === 1 ? "" : "s"}
+        </span>
+      </div>
+
+      <p className="dq-reason">{item.reason}</p>
+
+      {error && (
+        <div className="error-box" role="alert">
+          <span className="error-msg">{error}</span>
+        </div>
+      )}
+
+      {!correcting ? (
+        <div className="review-actions">
+          <button className="review-btn approve-btn" onClick={submitAcknowledge} disabled={submitting}>
+            {submitting ? <span className="spinner" /> : "Acknowledge — known issue"}
+          </button>
+          <button className="review-btn correct-btn" onClick={() => setCorrecting(true)} disabled={submitting}>
+            Correct vocabulary tag
+          </button>
+        </div>
+      ) : (
+        <form className="correction-form" onSubmit={submitCorrection}>
+          <label className="correction-field">
+            Correct vocabulary_id
+            <input
+              value={vocabularyId}
+              onChange={(e) => setVocabularyId(e.target.value)}
+              disabled={submitting}
+              autoFocus
+            />
+          </label>
+          <div className="review-actions">
+            <button type="submit" className="review-btn approve-btn" disabled={submitting || !vocabularyId.trim()}>
+              {submitting ? <span className="spinner" /> : "Submit correction"}
+            </button>
+            <button
+              type="button"
+              className="review-btn skip-btn"
+              onClick={() => setCorrecting(false)}
+              disabled={submitting}
+            >
+              Cancel
+            </button>
+          </div>
+        </form>
+      )}
+    </div>
+  );
+}
+
+function DataQualityReviewTab({ highlightConceptId }) {
+  const [items, setItems] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+
+  useEffect(() => {
+    getVocabularyMismatches()
+      .then(setItems)
+      .catch((err) => setError(err.message || "Failed to load data quality queue"))
+      .finally(() => setLoading(false));
+  }, []);
+
+  useEffect(() => {
+    if (!highlightConceptId || !items) return;
+    const el = document.getElementById(`concept-${highlightConceptId}`);
+    el?.scrollIntoView({ behavior: "smooth", block: "center" });
+  }, [highlightConceptId, items]);
+
+  function onResolved(conceptId) {
+    setItems((prev) => prev.filter((i) => i.concept_id !== conceptId));
+  }
+
+  if (error) return <div className="error-box" role="alert"><span className="error-msg">{error}</span></div>;
+  if (loading) return <p className="no-data">Loading data quality queue…</p>;
+
+  return (
+    <section className="data-section full-width">
+      <div className="section-head">
+        <h3>Vocabulary mismatches</h3>
+        <span className="count-chip">{items.length}</span>
+      </div>
+      <p className="no-data" style={{ marginBottom: 12 }}>
+        Concepts where the source code doesn&rsquo;t match its assigned vocabulary under Athena — separate from
+        the needs_review queue in Concept Review; reviewing here never touches that flag.
+      </p>
+      <div className="item-list">
+        {items.length === 0
+          ? <p className="no-data">No vocabulary mismatches pending review.</p>
+          : items.map((item) => (
+            <DataQualityCard
+              key={item.concept_id}
+              item={item}
+              highlighted={item.concept_id === highlightConceptId}
+              onResolved={onResolved}
+            />
+          ))}
+      </div>
+    </section>
+  );
+}
+
 const TABS = [
-  { key: "concepts", label: "Concept Review" },
+  { key: "concept-review", label: "Concept Review" },
   { key: "duplicates", label: "Duplicate Review" },
+  { key: "data-quality", label: "Data Quality Review" },
 ];
 
 export default function AdminReview() {
-  const [tab, setTab] = useState("concepts");
+  const [searchParams] = useSearchParams();
+  const requestedTab = searchParams.get("tab");
+  const highlightConceptId = searchParams.get("concept");
+  const [tab, setTab] = useState(
+    TABS.some((t) => t.key === requestedTab) ? requestedTab : "concept-review"
+  );
 
   return (
     <div className="dashboard admin-review">
       <h2 className="page-title">Admin Review</h2>
       <p className="page-subtitle">
-        Human-in-the-loop queue for AI mappings below the confidence threshold, and potential-duplicate
-        patient identities flagged by identity resolution. Reviewing here never re-runs classification
-        or merges patient records — it only records a decision.
+        Human-in-the-loop queue for AI mappings below the confidence threshold, potential-duplicate patients
+        flagged by identity resolution, and vocabulary mismatches found during OMOP standardization.
+        Corrections preserve the original AI decision alongside any human override; confirming a duplicate
+        performs a real, auditable merge — never a silent overwrite.
       </p>
 
       <div className="tab-bar" role="tablist">
@@ -481,8 +752,9 @@ export default function AdminReview() {
       </div>
 
       <div className="tab-panel">
-        {tab === "concepts" && <ConceptReviewTab />}
+        {tab === "concept-review" && <ConceptReviewTab />}
         {tab === "duplicates" && <DuplicateReviewTab />}
+        {tab === "data-quality" && <DataQualityReviewTab highlightConceptId={highlightConceptId} />}
       </div>
     </div>
   );

@@ -1,0 +1,117 @@
+.explorer-search {
+  max-width: 480px;
+  margin-bottom: 28px;
+}
+
+.explorer-layout {
+  display: grid;
+  grid-template-columns: var(--list-width, 340px) 8px 1fr;
+  gap: 16px;
+  align-items: start;
+}
+
+@media (max-width: 900px) {
+  .explorer-layout {
+    grid-template-columns: 1fr;
+  }
+  .explorer-layout .resizable-divider {
+    display: none;
+  }
+}
+
+.explorer-result-list {
+  max-height: 640px;
+  overflow-y: auto;
+}
+
+/* ── Resizable divider (shared visual pattern — see PatientSearch.css) ── */
+
+.resizable-divider {
+  align-self: stretch;
+  width: 8px;
+  cursor: col-resize;
+  position: relative;
+  touch-action: none;
+}
+
+.resizable-divider::after {
+  content: "";
+  position: absolute;
+  left: 3px;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  background: var(--rule);
+  transition: background 0.15s;
+}
+
+.resizable-divider:hover::after,
+.resizable-divider:focus-visible::after {
+  background: var(--accent);
+}
+
+.resizable-divider:focus-visible {
+  outline: none;
+}
+
+.explorer-result-row {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  width: 100%;
+  padding: 9px 8px;
+  border: none;
+  border-bottom: 1px solid var(--rule-light);
+  background: none;
+  cursor: pointer;
+  text-align: left;
+  font-family: var(--sans);
+  border-radius: 3px;
+}
+
+.explorer-result-row:hover { background: var(--surface); }
+.explorer-result-row.active { background: var(--surface); box-shadow: inset 2px 0 0 var(--accent); }
+.explorer-result-row.active .item-name { color: var(--accent); }
+
+.explorer-detail-header h3 {
+  margin: 0 0 8px;
+  font-size: 16px;
+  font-weight: 500;
+  color: var(--text-h);
+}
+
+.explorer-omop-line {
+  font-size: 12.5px;
+  color: var(--text);
+  margin: 10px 0 0;
+}
+.explorer-omop-line strong { color: var(--text-h); font-weight: 500; }
+
+.explorer-patient-count-line {
+  font-size: 12.5px;
+  color: var(--text);
+  margin: 14px 0 0;
+  opacity: 0.85;
+}
+
+.explorer-patient-list {
+  margin: 8px 0 16px;
+}
+
+.explorer-patient-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  margin-top: 6px;
+  max-height: 220px;
+  overflow-y: auto;
+  border-top: 1px solid var(--rule-light);
+}
+
+.explorer-patient-row {
+  font-size: 13px;
+  color: var(--text-h);
+  padding: 6px 0;
+  border-bottom: 1px solid var(--rule-light);
+}
+.explorer-patient-row:last-child { border-bottom: none; }

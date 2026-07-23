@@ -1,3 +1,10 @@
+/* This page has exactly 4 KPI cards — .kpi-grid's shared 3-column layout
+   (Dashboard.css, sized for Dashboard's 9-card grid) would leave a 3+1
+   leftover row here, so override to a proper 4-column row for this page only. */
+.ontology-browser-page .kpi-grid {
+  grid-template-columns: repeat(4, 1fr);
+}
+
 .ontology-chart {
   border: 1px solid var(--rule-light);
   border-radius: 6px;
@@ -86,6 +93,13 @@
   background: color-mix(in srgb, var(--accent) 14%, transparent);
   color: var(--accent);
   border: 1px solid color-mix(in srgb, var(--accent) 32%, transparent);
+}
+
+.unresolved-card-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
 }
 
 .expand-toggle-btn {

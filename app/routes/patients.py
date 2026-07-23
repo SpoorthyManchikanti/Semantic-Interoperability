@@ -3,20 +3,60 @@
 from fastapi import APIRouter, HTTPException
 from sqlalchemy import text
 from app.database import engine
+from app.routes.concepts import DEMO_SUBSET_PATIENT_IDS
+from scripts.load_to_neo4j import SYNTHETIC_CLONE_IDS
 
 router = APIRouter(prefix="/patients", tags=["patients"])
 
 
-@router.get("/")
-def list_patients(limit: int = 10, offset: int = 0):
-    """List all patients."""
+def _demo_subset_ids():
+    """Live union of the two existing demo-subset sources — never a
+    hardcoded list of our own: concepts.py's DEMO_SUBSET_PATIENT_IDS (the
+    15 original demo patients + anyone appended by register_ingested_patient
+    on a real /ingest run — the exact same list Admin Review filters on)
+    plus load_to_neo4j.py's SYNTHETIC_CLONE_IDS (the 3 synthetic duplicate
+    patients, tracked separately since they exist only for the identity-
+    resolution demo). Both are references to live module-level objects, so
+    this reflects additions to either immediately, with no snapshot/cache."""
+    return list(DEMO_SUBSET_PATIENT_IDS) + list(SYNTHETIC_CLONE_IDS)
+
+
+@router.get("/demo-subset")
+def list_demo_subset_patients():
+    """Patients to pin at the top of Patient Search's default (no-query)
+    list — see _demo_subset_ids() for what's included and why."""
     with engine.connect() as conn:
-        result = conn.execute(text("""
+        rows = conn.execute(text("""
             SELECT patient_id, first_name, last_name, gender, birth_date
             FROM patients
+            WHERE patient_id = ANY(:ids)
             ORDER BY last_name, first_name
-            LIMIT :limit OFFSET :offset
-        """), {"limit": limit, "offset": offset})
+        """), {"ids": _demo_subset_ids()}).fetchall()
+        return [dict(row._mapping) for row in rows]
+
+
+@router.get("/")
+def list_patients(limit: int = 10, offset: int = 0, exclude_demo_subset: bool = False):
+    """List all patients. exclude_demo_subset=True drops anyone returned by
+    GET /patients/demo-subset, so Patient Search's default view can show
+    the pinned demo section and the "All Patients" section below it with
+    no overlap."""
+    with engine.connect() as conn:
+        if exclude_demo_subset:
+            result = conn.execute(text("""
+                SELECT patient_id, first_name, last_name, gender, birth_date
+                FROM patients
+                WHERE patient_id != ALL(:ids)
+                ORDER BY last_name, first_name
+                LIMIT :limit OFFSET :offset
+            """), {"ids": _demo_subset_ids(), "limit": limit, "offset": offset})
+        else:
+            result = conn.execute(text("""
+                SELECT patient_id, first_name, last_name, gender, birth_date
+                FROM patients
+                ORDER BY last_name, first_name
+                LIMIT :limit OFFSET :offset
+            """), {"limit": limit, "offset": offset})
         return [dict(row._mapping) for row in result.fetchall()]
 
 
@@ -143,4 +183,22 @@ def get_patient_concepts(patient_id: str):
         if not rows:
             raise HTTPException(status_code=404, detail="Patient not found or has no concepts")
 
+        return [dict(r._mapping) for r in rows]
+
+
+@router.get("/{patient_id}/concept-relationships")
+def get_patient_concept_relationships(patient_id: str):
+    """Real Athena/OMOP relationships where both ends are this patient's own
+    OMOP-resolved concepts (populated by scripts/populate_concept_relationships.py).
+    Read-only. Returns an empty list for a patient with no populated rows —
+    not a 404, since having zero internal relationships is a legitimate
+    outcome (e.g. Jesus702 Dietrich576 has none)."""
+    with engine.connect() as conn:
+        rows = conn.execute(text("""
+            SELECT concept_id_1, concept_1_name, relationship_id,
+                   concept_id_2, concept_2_name
+            FROM concept_relationships
+            WHERE patient_id = :id
+            ORDER BY concept_1_name, relationship_id
+        """), {"id": patient_id}).fetchall()
         return [dict(r._mapping) for r in rows]

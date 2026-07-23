@@ -10,8 +10,14 @@ function Stage({ stage, isLast }) {
       <div className={`pipeline-stage stage-${stage.status}`}>
         <span className="stage-status-label">{STATUS_LABEL[stage.status]}</span>
         <span className="stage-name">{stage.label}</span>
-        <span className="stage-count">{stage.records_processed.toLocaleString()}</span>
-        <span className="stage-count-label">records</span>
+        {stage.detail ? (
+          <span className="stage-count-label">{stage.detail}</span>
+        ) : (
+          <>
+            <span className="stage-count">{stage.records_processed.toLocaleString()}</span>
+            <span className="stage-count-label">records</span>
+          </>
+        )}
         {stage.success_rate != null && (
           <span className="stage-success">{stage.success_rate}% success</span>
         )}
