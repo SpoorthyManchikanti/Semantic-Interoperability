@@ -1,10 +1,32 @@
 import { useEffect, useState } from "react";
-import { useNavigate, useSearchParams } from "react-router-dom";
-import { searchPatients } from "../api";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
+import { searchPatients, listPatients, getPatient } from "../api";
+import { buildConceptList } from "../lib/deriveConcepts";
+import { useResizableWidth } from "../lib/useResizableWidth";
 import "./PatientSearch.css";
 
-function SearchResults({ q }) {
-  const navigate = useNavigate();
+const DEFAULT_LIST_LIMIT = 20;
+const TOP_CONDITIONS_LIMIT = 5;
+const LIST_DEFAULT_WIDTH = 340;
+const LIST_MIN_WIDTH = 250;
+const LIST_MAX_WIDTH = 600;
+
+function PatientRow({ patient, active, onSelect }) {
+  return (
+    <button
+      className={`patient-result-row${active ? " active" : ""}`}
+      onClick={() => onSelect(patient)}
+    >
+      <div className="patient-result-row-main">
+        <span className="item-name">{patient.first_name} {patient.last_name}</span>
+        <span className="badge cat-badge">{patient.gender}</span>
+      </div>
+      <span className="code-inline mono">{patient.patient_id}</span>
+    </button>
+  );
+}
+
+function SearchResults({ q, selected, onSelect }) {
   const [results, setResults] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -25,30 +47,143 @@ function SearchResults({ q }) {
         <h3>Results for &ldquo;{q}&rdquo;</h3>
         <span className="count-chip">{results.length}</span>
       </div>
-      <div className="item-list">
+      <div className="item-list patient-result-list">
         {results.length === 0
           ? <p className="no-data">No patients matched. Try a shorter fragment of the name or ID.</p>
           : results.map((p) => (
-            <button
+            <PatientRow
               key={p.patient_id}
-              className="patient-result-row"
-              onClick={() => navigate(`/patients/${p.patient_id}`)}
-            >
-              <span className="item-name">{p.first_name} {p.last_name}</span>
-              <span className="badge cat-badge">{p.gender}</span>
-              <span className="code-inline mono">{p.patient_id}</span>
-            </button>
+              patient={p}
+              active={selected?.patient_id === p.patient_id}
+              onSelect={onSelect}
+            />
           ))}
       </div>
     </section>
   );
 }
 
+// Shown until the user searches — first 20 patients by name, via the same
+// GET /patients/ listing endpoint the rest of the app uses, so this page
+// never opens to a blank results area.
+function DefaultPatientList({ selected, onSelect }) {
+  const [patients, setPatients] = useState(null);
+  const [error, setError] = useState(null);
+
+  useEffect(() => {
+    listPatients(DEFAULT_LIST_LIMIT, 0)
+      .then(setPatients)
+      .catch((err) => setError(err.message || "Failed to load patients"));
+  }, []);
+
+  if (error) return <div className="error-box" role="alert"><span className="error-msg">{error}</span></div>;
+  if (!patients) return <p className="no-data">Loading patients…</p>;
+
+  return (
+    <section className="data-section full-width">
+      <div className="section-head">
+        <h3>All patients</h3>
+        <span className="count-chip">{patients.length}</span>
+      </div>
+      <div className="item-list patient-result-list">
+        {patients.map((p) => (
+          <PatientRow
+            key={p.patient_id}
+            patient={p}
+            active={selected?.patient_id === p.patient_id}
+            onSelect={onSelect}
+          />
+        ))}
+      </div>
+    </section>
+  );
+}
+
+// Quick preview for the selected row — real data via the same GET
+// /patients/{id} the full detail page uses, just summarized instead of
+// rendering every tab. omop resolution is computed directly from each
+// concept's omop_concept_id rather than reusing deriveStats()'s
+// resolutionRate, which is keyed off a `status` field the DB-backed
+// /patients/{id} response doesn't populate (it would always read 100%).
+function PatientPreviewPanel({ patient }) {
+  const [full, setFull] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+
+  useEffect(() => {
+    setFull(null);
+    setLoading(true);
+    setError(null);
+    getPatient(patient.patient_id)
+      .then(setFull)
+      .catch((err) => setError(err.message || "Failed to load patient"))
+      .finally(() => setLoading(false));
+  }, [patient.patient_id]);
+
+  if (error) return <div className="error-box" role="alert"><span className="error-msg">{error}</span></div>;
+  if (loading || !full) return <p className="no-data">Loading preview…</p>;
+
+  const conditions = full.conditions ?? [];
+  const medications = full.medications ?? [];
+  const topConditions = conditions.slice(0, TOP_CONDITIONS_LIMIT);
+
+  const concepts = buildConceptList(full);
+  const resolvedCount = concepts.filter((c) => c.omopConceptId).length;
+  const resolutionRate = concepts.length > 0 ? Math.round((resolvedCount / concepts.length) * 100) : null;
+
+  return (
+    <div className="patient-preview">
+      <div className="explorer-detail-header">
+        <h3>{full.first_name} {full.last_name}</h3>
+        <div className="item-badges">
+          <span className="badge cat-badge">{full.gender}</span>
+          {full.birth_date && <span className="badge subcat-badge">DOB {full.birth_date}</span>}
+          <span className="code-inline mono">{full.patient_id}</span>
+        </div>
+      </div>
+
+      <div className="patient-preview-stats">
+        <div className="patient-preview-stat">
+          <span className="stat-value">{medications.length}</span>
+          <span className="stat-label">Medications</span>
+        </div>
+        <div className="patient-preview-stat">
+          <span className="stat-value">{resolutionRate != null ? `${resolutionRate}%` : "—"}</span>
+          <span className="stat-label">OMOP resolution rate</span>
+        </div>
+      </div>
+
+      <div className="patient-preview-conditions">
+        <span className="review-panel-label">
+          Top conditions {conditions.length > TOP_CONDITIONS_LIMIT ? `(${TOP_CONDITIONS_LIMIT} of ${conditions.length})` : ""}
+        </span>
+        {topConditions.length === 0
+          ? <p className="no-data">No conditions recorded</p>
+          : (
+            <div className="item-list">
+              {topConditions.map((c, i) => (
+                <div key={i} className="item-card">
+                  <span className="item-name">{c.condition_name}</span>
+                </div>
+              ))}
+            </div>
+          )}
+      </div>
+
+      <Link className="ingest-view-link" to={`/patients/${full.patient_id}`}>
+        View full record &rarr;
+      </Link>
+    </div>
+  );
+}
+
 export default function PatientSearch() {
-  const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const q = searchParams.get("q") ?? "";
   const [query, setQuery] = useState(q);
+  const [selected, setSelected] = useState(null);
+  const navigate = useNavigate();
+  const { width: listWidth, dividerProps } = useResizableWidth(LIST_DEFAULT_WIDTH, LIST_MIN_WIDTH, LIST_MAX_WIDTH);
 
   function onSearch(e) {
     e.preventDefault();
@@ -78,7 +213,26 @@ export default function PatientSearch() {
         </form>
       </section>
 
-      {q && <SearchResults key={q} q={q} />}
+      <div className="patient-search-layout" style={{ "--list-width": `${listWidth}px` }}>
+        {q
+          ? <SearchResults key={q} q={q} selected={selected} onSelect={setSelected} />
+          : <DefaultPatientList selected={selected} onSelect={setSelected} />}
+
+        <div
+          className="resizable-divider"
+          role="separator"
+          aria-orientation="vertical"
+          aria-label="Resize results panel"
+          tabIndex={0}
+          {...dividerProps}
+        />
+
+        <section className="patient-search-detail data-section">
+          {!selected
+            ? <p className="no-data">Select a patient from the list to see a quick preview.</p>
+            : <PatientPreviewPanel key={selected.patient_id} patient={selected} />}
+        </section>
+      </div>
     </div>
   );
 }

@@ -159,8 +159,8 @@ export default function OntologyBrowser() {
       <div className="dashboard-header">
         <h2 className="page-title">Ontology Browser</h2>
         <p className="page-subtitle">
-          How many of Agent 1's classified concepts resolve to a real Athena/OMOP standard
-          concept — read-only cross-reference, no reprocessing, no Agent 1 changes.
+          How well our AI-classified concepts align with the real, industry-standard OMOP vocabulary —
+          including the specific cases that don't resolve cleanly, and why.
         </p>
         <DataSourceBadge breakdown={dataSourceBreakdown} />
       </div>

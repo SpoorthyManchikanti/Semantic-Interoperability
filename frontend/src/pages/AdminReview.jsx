@@ -620,9 +620,10 @@ export default function AdminReview() {
     <div className="dashboard admin-review">
       <h2 className="page-title">Admin Review</h2>
       <p className="page-subtitle">
-        Human-in-the-loop queue for AI mappings below the confidence threshold, and potential-duplicate
-        patient identities flagged by identity resolution. Reviewing here never re-runs classification
-        or merges patient records — it only records a decision.
+        Human-in-the-loop queue for AI mappings below the confidence threshold, potential-duplicate patients
+        flagged by identity resolution, and vocabulary mismatches found during OMOP standardization.
+        Corrections preserve the original AI decision alongside any human override; confirming a duplicate
+        performs a real, auditable merge — never a silent overwrite.
       </p>
 
       <div className="tab-bar" role="tablist">

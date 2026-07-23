@@ -49,3 +49,5 @@ temp/
 
 # Logs
 *.log
+uploads/
+app/routes/_ingested_patient_subset.json

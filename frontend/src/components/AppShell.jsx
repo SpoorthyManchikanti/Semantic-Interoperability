@@ -5,11 +5,11 @@ import "./AppShell.css";
 
 const NAV_ITEMS = [
   { to: "/", label: "Dashboard", end: true },
-  { to: "/ontology", label: "Ontology Browser" },
-  { to: "/explorer", label: "Semantic Explorer" },
   { to: "/ingest", label: "Ingest Patient" },
   { to: "/admin", label: "Admin Review" },
   { to: "/patients", label: "Patients" },
+  { to: "/explorer", label: "Semantic Explorer" },
+  { to: "/ontology", label: "Ontology Browser" },
 ];
 
 function useBreadcrumbs() {

@@ -99,6 +99,10 @@ export async function searchConcepts(q) {
   return getJson(`/concepts/search?q=${encodeURIComponent(q)}`);
 }
 
+export async function getFeaturedConcepts(limit = 20) {
+  return getJson(`/concepts/featured?limit=${limit}`);
+}
+
 export async function getConceptGraph(conceptId) {
   return getJson(`/concepts/${conceptId}/graph`);
 }

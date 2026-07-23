@@ -27,6 +27,15 @@ patient_id instead of a hardcoded demo-subset list:
 
 Progress is tracked in an in-memory job store and exposed via polling —
 adequate for this single-process demo deployment (no multi-worker uvicorn).
+
+Batch tracking: every /ingest/start call is one "batch", identified by that
+call's job_id (reused as ingestion_batch_id — no separate ID is minted). The
+ingest stage tags the new patient row and its ingested_files row with this
+batch_id/ingested_at as a normal part of that stage's own SQL — not a
+side script, not opt-in, not test-only. DELETE /ingest/batches/{batch_id}
+reverses everything a batch created (Postgres rows, now-orphaned shared
+concepts, the Neo4j Patient node, its Admin Review subset-list entry, and
+its uploaded file), for any batch, at any time, by anyone who calls it.
 """
 
 import json
@@ -54,7 +63,7 @@ from scripts.populate_concept_relationships import (
     fetch_internal_relationships,
 )
 from app.services.identity_resolution import match_score, match_breakdown, DEFAULT_MATCH_THRESHOLD
-from app.routes.concepts import register_ingested_patient
+from app.routes.concepts import register_ingested_patient, unregister_ingested_patient
 from app.neo4j_db import get_neo4j_session
 from scripts.load_to_neo4j import map_source_type_to_relationship, sanitize_relationship_type
 
@@ -72,6 +81,7 @@ JOBS_LOCK = threading.Lock()
 def _new_job(filename):
     return {
         "filename": filename,
+        "batch_id": None,
         "patient_id": None,
         "patient_name": None,
         "duplicate_match": None,
@@ -99,9 +109,12 @@ def _set_job_fields(job_id, **fields):
 # Stage 1: Ingest — etl.load_data.process_bundle, reused verbatim
 # ----------------------------------------------------------------
 
-def _do_ingest_stage(file_path: Path, original_filename: str):
+def _do_ingest_stage(file_path: Path, original_filename: str, batch_id: str):
     with open(file_path, "r", encoding="utf-8") as f:
         bundle = json.load(f)
+
+    if not isinstance(bundle, dict):
+        raise ValueError("Uploaded file is not a valid FHIR bundle — expected a JSON object with an 'entry' array.")
 
     patient_resource = next(
         (e["resource"] for e in bundle.get("entry", []) if e.get("resource", {}).get("resourceType") == "Patient"),
@@ -120,11 +133,23 @@ def _do_ingest_stage(file_path: Path, original_filename: str):
     process_bundle(str(file_path))
     mark_file_ingested(original_filename)
 
+    # Tags this patient (and its source file) with the /ingest job that created
+    # them — batch_id is always this run's job_id (one batch per /ingest/start
+    # call). This is what DELETE /ingest/batches/{batch_id} rolls back later;
+    # pre-existing/demo patients keep ingestion_batch_id NULL and are never
+    # touched by that endpoint.
     with engine.begin() as conn:
         conn.execute(text("""
-            UPDATE patients SET data_source = 'Synthea Synthetic Patient Data', created_at = NOW()
+            UPDATE patients
+            SET data_source = 'Synthea Synthetic Patient Data',
+                created_at = NOW(),
+                ingestion_batch_id = :batch_id,
+                ingested_at = NOW()
             WHERE patient_id = :id
-        """), {"id": patient_id})
+        """), {"id": patient_id, "batch_id": batch_id})
+        conn.execute(text("""
+            UPDATE ingested_files SET ingestion_batch_id = :batch_id WHERE filename = :filename
+        """), {"filename": original_filename, "batch_id": batch_id})
 
     with engine.connect() as conn:
         row = conn.execute(text(
@@ -468,10 +493,12 @@ def _do_graph_sync_stage(patient_id: str):
 # ----------------------------------------------------------------
 
 def _run_pipeline(job_id: str, file_path: Path, original_filename: str):
+    # batch_id == job_id: one /ingest/start call is one batch, by design (see
+    # DELETE /ingest/batches/{batch_id} below).
     try:
         _set_stage(job_id, "ingest", "running")
-        patient_id, patient_name, ingest_summary = _do_ingest_stage(file_path, original_filename)
-        _set_job_fields(job_id, patient_id=patient_id, patient_name=patient_name)
+        patient_id, patient_name, ingest_summary = _do_ingest_stage(file_path, original_filename, batch_id=job_id)
+        _set_job_fields(job_id, patient_id=patient_id, patient_name=patient_name, batch_id=job_id)
         _set_stage(job_id, "ingest", "success", summary=ingest_summary)
     except Exception as e:
         _set_stage(job_id, "ingest", "failure", error=str(e))
@@ -536,18 +563,140 @@ async def start_ingestion(file: UploadFile = File(...)):
     if not file.filename.lower().endswith(".json"):
         raise HTTPException(status_code=400, detail="Please upload a FHIR JSON bundle (.json file).")
 
+    # Strips any directory components from the client-supplied filename
+    # (e.g. "../../etc/passwd") before it ever touches a filesystem path —
+    # Path.name keeps only the final path segment.
+    safe_filename = Path(file.filename).name
+    if not safe_filename:
+        raise HTTPException(status_code=400, detail="Invalid filename.")
+
     job_id = str(uuid.uuid4())
-    dest_path = UPLOAD_DIR / f"{job_id}_{file.filename}"
+    dest_path = UPLOAD_DIR / f"{job_id}_{safe_filename}"
     contents = await file.read()
     dest_path.write_bytes(contents)
 
     with JOBS_LOCK:
-        JOBS[job_id] = _new_job(file.filename)
+        JOBS[job_id] = _new_job(safe_filename)
 
-    thread = threading.Thread(target=_run_pipeline, args=(job_id, dest_path, file.filename), daemon=True)
+    thread = threading.Thread(target=_run_pipeline, args=(job_id, dest_path, safe_filename), daemon=True)
     thread.start()
 
     return {"job_id": job_id}
+
+
+@router.delete("/batches/{batch_id}")
+def rollback_batch(batch_id: str):
+    """Fully reverse everything a single /ingest run created, identified by
+    that run's own job_id (= ingestion_batch_id). Real, callable, permanent
+    part of the pipeline — not a one-off script: any batch, from any past
+    ingestion (today's or months old), can be rolled back this way, by
+    anyone, at any time.
+
+    Only ever touches rows explicitly tagged with this batch_id — pre-existing/
+    demo patients have ingestion_batch_id IS NULL and can never match here, so
+    there is no way to accidentally roll back anything but a real /ingest run.
+
+    Deletes, in dependency order: concept_relationships, patient_matches,
+    patient_concepts, conditions/medications/observations, the patient row
+    itself, the ingested_files row, any concept left with zero remaining
+    patient_concepts links (plus its processing_status row, so it will be
+    treated as genuinely new if re-ingested), the Neo4j Patient node, this
+    patient's Admin Review subset-list entry, the uploaded source file, and
+    the in-memory job entry (batch_id doubles as job_id).
+    """
+    try:
+        uuid.UUID(batch_id)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid batch_id — must be a UUID.")
+
+    with engine.connect() as conn:
+        patient_rows = conn.execute(text(
+            "SELECT patient_id, first_name, last_name FROM patients WHERE ingestion_batch_id = :batch_id"
+        ), {"batch_id": batch_id}).fetchall()
+
+    if not patient_rows:
+        raise HTTPException(status_code=404, detail=f"No ingested patient found for batch {batch_id}")
+
+    patient_ids = [r.patient_id for r in patient_rows]
+    deleted_patients = [f"{r.first_name} {r.last_name}" for r in patient_rows]
+
+    with engine.begin() as conn:
+        concept_ids_linked = [
+            r.concept_id for r in conn.execute(text(
+                "SELECT DISTINCT concept_id FROM patient_concepts WHERE patient_id = ANY(:pids)"
+            ), {"pids": patient_ids}).fetchall()
+        ]
+
+        orphaned_ids = []
+        if concept_ids_linked:
+            orphaned_ids = [
+                r.concept_id for r in conn.execute(text("""
+                    SELECT concept_id FROM patient_concepts
+                    WHERE concept_id = ANY(:cids)
+                    GROUP BY concept_id
+                    HAVING COUNT(*) FILTER (WHERE patient_id != ALL(:pids)) = 0
+                """), {"cids": concept_ids_linked, "pids": patient_ids}).fetchall()
+            ]
+
+        rel_count = conn.execute(text(
+            "DELETE FROM concept_relationships WHERE patient_id = ANY(:pids)"
+        ), {"pids": patient_ids}).rowcount
+        match_count = conn.execute(text(
+            "DELETE FROM patient_matches WHERE patient_id_1 = ANY(:pids) OR patient_id_2 = ANY(:pids)"
+        ), {"pids": patient_ids}).rowcount
+        pc_count = conn.execute(text(
+            "DELETE FROM patient_concepts WHERE patient_id = ANY(:pids)"
+        ), {"pids": patient_ids}).rowcount
+        conn.execute(text("DELETE FROM conditions WHERE patient_id = ANY(:pids)"), {"pids": patient_ids})
+        conn.execute(text("DELETE FROM medications WHERE patient_id = ANY(:pids)"), {"pids": patient_ids})
+        conn.execute(text("DELETE FROM observations WHERE patient_id = ANY(:pids)"), {"pids": patient_ids})
+        conn.execute(text("DELETE FROM patients WHERE patient_id = ANY(:pids)"), {"pids": patient_ids})
+
+        if orphaned_ids:
+            orphaned_names = conn.execute(text(
+                "SELECT concept_name, source_type FROM concepts WHERE concept_id = ANY(:cids)"
+            ), {"cids": orphaned_ids}).fetchall()
+            for n in orphaned_names:
+                conn.execute(text(
+                    "DELETE FROM processing_status WHERE concept_name = :name AND source_type = :st"
+                ), {"name": n.concept_name, "st": n.source_type})
+            conn.execute(text("DELETE FROM concepts WHERE concept_id = ANY(:cids)"), {"cids": orphaned_ids})
+
+        files_deleted = conn.execute(text(
+            "DELETE FROM ingested_files WHERE ingestion_batch_id = :batch_id RETURNING filename"
+        ), {"batch_id": batch_id}).fetchall()
+
+    neo4j_nodes_deleted = 0
+    with get_neo4j_session() as session:
+        for pid in patient_ids:
+            result = session.run(
+                "MATCH (p:Patient {patient_id: $pid}) DETACH DELETE p", pid=pid
+            )
+            neo4j_nodes_deleted += result.consume().counters.nodes_deleted
+
+    for pid in patient_ids:
+        unregister_ingested_patient(pid)
+
+    uploaded_files_removed = []
+    for f in UPLOAD_DIR.glob(f"{batch_id}_*"):
+        f.unlink()
+        uploaded_files_removed.append(f.name)
+
+    with JOBS_LOCK:
+        JOBS.pop(batch_id, None)
+
+    return {
+        "batch_id": batch_id,
+        "patients_deleted": deleted_patients,
+        "patient_ids_deleted": patient_ids,
+        "concepts_orphaned_and_removed": len(orphaned_ids),
+        "concept_relationships_deleted": rel_count,
+        "patient_matches_deleted": match_count,
+        "patient_concepts_deleted": pc_count,
+        "ingested_files_deleted": [r.filename for r in files_deleted],
+        "neo4j_nodes_deleted": neo4j_nodes_deleted,
+        "uploaded_files_removed": uploaded_files_removed,
+    }
 
 
 @router.get("/{job_id}")

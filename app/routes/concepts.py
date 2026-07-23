@@ -5,7 +5,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import List, Literal, Optional
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel
 from sqlalchemy import text
 from app.database import engine
@@ -69,6 +69,18 @@ def register_ingested_patient(patient_id: str):
         current.append(patient_id)
         _INGESTED_SUBSET_FILE.write_text(json.dumps(current), encoding="utf-8")
         DEMO_SUBSET_PATIENT_IDS.append(patient_id)
+
+
+def unregister_ingested_patient(patient_id: str):
+    """Counterpart to register_ingested_patient — used by
+    DELETE /ingest/batches/{batch_id} to undo the Admin Review visibility
+    grant when a batch is rolled back."""
+    current = _load_ingested_subset()
+    if patient_id in current:
+        current.remove(patient_id)
+        _INGESTED_SUBSET_FILE.write_text(json.dumps(current), encoding="utf-8")
+    if patient_id in DEMO_SUBSET_PATIENT_IDS:
+        DEMO_SUBSET_PATIENT_IDS.remove(patient_id)
 
 
 DEMO_SUBSET_PATIENT_IDS.extend(
@@ -422,6 +434,51 @@ def review_vocabulary_mismatch(concept_id: str, body: VocabularyReviewRequest):
             FROM concepts WHERE concept_id = :concept_id
         """), {"concept_id": concept_id}).fetchone()
         return dict(row._mapping)
+
+
+@router.get("/featured")
+def get_featured_concepts(limit: int = Query(20, ge=1, le=100)):
+    """Default set for Semantic Explorer's landing state (no query typed
+    yet) — same row shape as GET /concepts/search, so the frontend can
+    render either through the identical ResultRow/ConceptDetailPanel with
+    no special-casing.
+
+    Concepts with a real documented clinical relationship (a row in
+    concept_relationships, resolved back from OMOP concept_id_1/2 to this
+    concept's own omop_concept_id) are surfaced first, since those are the
+    most interesting to click into; remaining slots are filled by patient
+    count, so the rest of the list is common conditions/medications/
+    observations rather than obscure one-off concepts.
+    """
+    with engine.connect() as conn:
+        rows = conn.execute(text("""
+            WITH concept_stats AS (
+                SELECT
+                    con.concept_id, con.concept_name, con.vocabulary_id,
+                    con.category, con.subcategory, con.omop_standard_name,
+                    con.omop_domain, con.omop_concept_id,
+                    COUNT(DISTINCT pc.patient_id) AS patient_count
+                FROM concepts con
+                JOIN patient_concepts pc ON pc.concept_id = con.concept_id
+                GROUP BY con.concept_id, con.concept_name, con.vocabulary_id,
+                         con.category, con.subcategory, con.omop_standard_name,
+                         con.omop_domain, con.omop_concept_id
+            ),
+            with_relationships AS (
+                SELECT DISTINCT cs.concept_id
+                FROM concept_stats cs
+                JOIN concept_relationships cr
+                    ON cr.concept_id_1 = cs.omop_concept_id OR cr.concept_id_2 = cs.omop_concept_id
+            )
+            SELECT
+                cs.concept_id, cs.concept_name, cs.vocabulary_id, cs.category,
+                cs.subcategory, cs.omop_standard_name, cs.omop_domain, cs.patient_count
+            FROM concept_stats cs
+            ORDER BY (cs.concept_id IN (SELECT concept_id FROM with_relationships)) DESC,
+                     cs.patient_count DESC
+            LIMIT :limit
+        """), {"limit": limit}).fetchall()
+        return [dict(row._mapping) for row in rows]
 
 
 @router.get("/search")

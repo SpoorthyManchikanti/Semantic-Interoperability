@@ -8,21 +8,10 @@ export default function KpiGrid({ summary }) {
       value: summary.total_patients,
     },
     {
-      tag: "FR",
-      label: "FHIR Resources Ingested",
-      value: summary.fhir_resources,
-    },
-    {
       tag: "CC",
       label: "Distinct Clinical Concepts",
       value: summary.distinct_clinical_concepts,
       caption: "Unique standardized terms (conditions, medications, observations) in our vocabulary",
-    },
-    {
-      tag: "CF",
-      label: "Clinical Facts Recorded",
-      value: summary.clinical_facts_recorded,
-      caption: "Patient-specific instances of these concepts across all patients",
     },
     {
       tag: "OM",
@@ -31,14 +20,6 @@ export default function KpiGrid({ summary }) {
       unit: "%",
       decimals: 1,
       caption: `${summary.omop_resolution_rate_demo_subset}% within the 15-patient demo subset vs. ${summary.omop_resolution_rate_full}% across all concepts — enrichment targeted the demo subset only`,
-    },
-    {
-      tag: "AI",
-      label: "Model Classification Confidence",
-      value: summary.model_classification_confidence,
-      unit: "%",
-      decimals: 1,
-      caption: "Self-reported confidence from Agent 1's classification model, not validated accuracy",
     },
     {
       tag: "RV",

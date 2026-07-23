@@ -1,20 +1,113 @@
 .patient-search-page {
-  max-width: 640px;
+  max-width: none;
+}
+
+.search-section {
+  max-width: 480px;
+}
+
+.patient-search-layout {
+  display: grid;
+  grid-template-columns: var(--list-width, 340px) 8px 1fr;
+  gap: 16px;
+  align-items: start;
+}
+
+@media (max-width: 900px) {
+  .patient-search-layout {
+    grid-template-columns: 1fr;
+  }
+  .patient-search-layout .resizable-divider {
+    display: none;
+  }
+}
+
+.patient-result-list {
+  max-height: 640px;
+  overflow-y: auto;
+}
+
+/* ── Resizable divider (shared visual pattern — see SemanticExplorer.css) ── */
+
+.resizable-divider {
+  align-self: stretch;
+  width: 8px;
+  cursor: col-resize;
+  position: relative;
+  touch-action: none;
+}
+
+.resizable-divider::after {
+  content: "";
+  position: absolute;
+  left: 3px;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  background: var(--rule);
+  transition: background 0.15s;
+}
+
+.resizable-divider:hover::after,
+.resizable-divider:focus-visible::after {
+  background: var(--accent);
+}
+
+.resizable-divider:focus-visible {
+  outline: none;
 }
 
 .patient-result-row {
   display: flex;
-  align-items: center;
-  gap: 12px;
+  flex-direction: column;
+  gap: 3px;
   width: 100%;
-  padding: 9px 0;
+  padding: 9px 8px;
   border: none;
   border-bottom: 1px solid var(--rule-light);
   background: none;
   cursor: pointer;
   text-align: left;
   font-family: var(--sans);
+  border-radius: 3px;
 }
 
+.patient-result-row-main {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.patient-result-row:hover { background: var(--surface); }
 .patient-result-row:hover .item-name { color: var(--accent); }
-.patient-result-row .code-inline { margin-left: auto; }
+.patient-result-row.active { background: var(--surface); box-shadow: inset 2px 0 0 var(--accent); }
+.patient-result-row.active .item-name { color: var(--accent); }
+.patient-result-row .code-inline { opacity: 0.6; }
+
+.patient-search-detail {
+  min-height: 200px;
+}
+
+.patient-preview-stats {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 1px;
+  background: var(--rule-light);
+  border: 1px solid var(--rule-light);
+  margin: 16px 0;
+}
+
+.patient-preview-stat {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 12px 14px;
+  background: var(--surface);
+}
+
+.patient-preview-conditions {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-bottom: 20px;
+}

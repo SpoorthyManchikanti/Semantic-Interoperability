@@ -1,7 +1,12 @@
 import { useEffect, useState } from "react";
-import { searchConcepts, getConceptGraph } from "../api";
+import { searchConcepts, getFeaturedConcepts, getConceptGraph } from "../api";
 import RelationshipGraph from "../components/graph/RelationshipGraph";
+import { useResizableWidth } from "../lib/useResizableWidth";
 import "./SemanticExplorer.css";
+
+const LIST_DEFAULT_WIDTH = 340;
+const LIST_MIN_WIDTH = 250;
+const LIST_MAX_WIDTH = 600;
 
 // Stable reference so RelationshipGraph's useMemo doesn't see a new array
 // identity on every render.
@@ -104,6 +109,17 @@ export default function SemanticExplorer() {
   const [error, setError] = useState(null);
   const [selected, setSelected] = useState(null);
 
+  // Landing state (no query typed yet) — same row shape/shared components as
+  // real search results, so clicking one behaves identically either way.
+  const [featured, setFeatured] = useState(null);
+  const [featuredError, setFeaturedError] = useState(null);
+
+  useEffect(() => {
+    getFeaturedConcepts(20)
+      .then(setFeatured)
+      .catch((err) => setFeaturedError(err.message || "Failed to load featured concepts"));
+  }, []);
+
   useEffect(() => {
     const id = setTimeout(() => setDebounced(query.trim()), 350);
     return () => clearTimeout(id);
@@ -121,6 +137,11 @@ export default function SemanticExplorer() {
       .catch((err) => setError(err.message || "Search failed"))
       .finally(() => setLoading(false));
   }, [debounced]);
+
+  const showingFeatured = !debounced;
+  const listedConcepts = showingFeatured ? featured : results;
+
+  const { width: listWidth, dividerProps } = useResizableWidth(LIST_DEFAULT_WIDTH, LIST_MIN_WIDTH, LIST_MAX_WIDTH);
 
   return (
     <div className="explorer-page">
@@ -140,20 +161,23 @@ export default function SemanticExplorer() {
         />
       </div>
 
-      <div className="explorer-layout">
+      <div className="explorer-layout" style={{ "--list-width": `${listWidth}px` }}>
         <section className="explorer-results data-section">
           <div className="section-head">
-            <h3>Results</h3>
-            {results && <span className="count-chip">{results.length}</span>}
+            <h3>{showingFeatured ? "Featured concepts" : "Results"}</h3>
+            {listedConcepts && <span className="count-chip">{listedConcepts.length}</span>}
           </div>
           <div className="item-list explorer-result-list">
-            {!debounced && <p className="no-data">Start typing to search concepts.</p>}
+            {showingFeatured && featuredError && (
+              <div className="error-box" role="alert"><span className="error-msg">{featuredError}</span></div>
+            )}
+            {showingFeatured && !featured && !featuredError && <p className="no-data">Loading featured concepts…</p>}
             {loading && <p className="no-data">Searching…</p>}
             {error && <div className="error-box" role="alert"><span className="error-msg">{error}</span></div>}
-            {results && results.length === 0 && (
+            {!showingFeatured && results && results.length === 0 && (
               <p className="no-data">No concepts matched &ldquo;{debounced}&rdquo;.</p>
             )}
-            {results && results.map((c) => (
+            {listedConcepts && listedConcepts.map((c) => (
               <ResultRow
                 key={c.concept_id}
                 concept={c}
@@ -163,6 +187,15 @@ export default function SemanticExplorer() {
             ))}
           </div>
         </section>
+
+        <div
+          className="resizable-divider"
+          role="separator"
+          aria-orientation="vertical"
+          aria-label="Resize results panel"
+          tabIndex={0}
+          {...dividerProps}
+        />
 
         <section className="explorer-detail data-section">
           {!selected

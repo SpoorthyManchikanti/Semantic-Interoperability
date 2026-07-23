@@ -10,6 +10,12 @@ import ActivityFeed from "../components/dashboard/ActivityFeed";
 import DataSourceBadge from "../components/DataSourceBadge";
 import "./Dashboard.css";
 
+// GET /dashboard/pipeline runs its Neo4j node/relationship count fresh on
+// every call (no caching) — this interval is what actually makes the
+// Knowledge Graph card in PipelineStatus a live view instead of a one-time
+// snapshot fetched at page load.
+const PIPELINE_REFRESH_MS = 8000;
+
 export default function Dashboard() {
   const [summary, setSummary] = useState(null);
   const [pipeline, setPipeline] = useState(null);
@@ -35,6 +41,22 @@ export default function Dashboard() {
 
     // Fetched separately — a failure here shouldn't block the rest of the dashboard.
     getDataSourceSummary().then(setDataSourceBreakdown).catch(() => setDataSourceBreakdown([]));
+  }, []);
+
+  // Silently re-fetch pipeline status on an interval so the Knowledge Graph
+  // card's node/relationship count stays live while the page is open —
+  // reflects ingestions and rollbacks as they happen, not just at load.
+  useEffect(() => {
+    let cancelled = false;
+    const interval = setInterval(() => {
+      getDashboardPipeline()
+        .then((p) => { if (!cancelled) setPipeline(p); })
+        .catch(() => {}); // a transient poll failure shouldn't disrupt the displayed value
+    }, PIPELINE_REFRESH_MS);
+    return () => {
+      cancelled = true;
+      clearInterval(interval);
+    };
   }, []);
 
   if (error) {

@@ -5,8 +5,8 @@
 
 .explorer-layout {
   display: grid;
-  grid-template-columns: 340px 1fr;
-  gap: 32px;
+  grid-template-columns: var(--list-width, 340px) 8px 1fr;
+  gap: 16px;
   align-items: start;
 }
 
@@ -14,11 +14,44 @@
   .explorer-layout {
     grid-template-columns: 1fr;
   }
+  .explorer-layout .resizable-divider {
+    display: none;
+  }
 }
 
 .explorer-result-list {
   max-height: 640px;
   overflow-y: auto;
+}
+
+/* ── Resizable divider (shared visual pattern — see PatientSearch.css) ── */
+
+.resizable-divider {
+  align-self: stretch;
+  width: 8px;
+  cursor: col-resize;
+  position: relative;
+  touch-action: none;
+}
+
+.resizable-divider::after {
+  content: "";
+  position: absolute;
+  left: 3px;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  background: var(--rule);
+  transition: background 0.15s;
+}
+
+.resizable-divider:hover::after,
+.resizable-divider:focus-visible::after {
+  background: var(--accent);
+}
+
+.resizable-divider:focus-visible {
+  outline: none;
 }
 
 .explorer-result-row {
