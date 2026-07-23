@@ -30,8 +30,12 @@ export async function getPatientConcepts(patientId) {
   return getJson(`/patients/${patientId}/concepts`);
 }
 
-export async function listPatients(limit = 10, offset = 0) {
-  return getJson(`/patients/?limit=${limit}&offset=${offset}`);
+export async function listPatients(limit = 10, offset = 0, excludeDemoSubset = false) {
+  return getJson(`/patients/?limit=${limit}&offset=${offset}${excludeDemoSubset ? "&exclude_demo_subset=true" : ""}`);
+}
+
+export async function getDemoSubsetPatients() {
+  return getJson(`/patients/demo-subset`);
 }
 
 export async function searchPatients(params = {}) {

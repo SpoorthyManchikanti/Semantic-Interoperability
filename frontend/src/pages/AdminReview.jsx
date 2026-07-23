@@ -239,6 +239,25 @@ function ConceptReviewTab() {
   const [exceptionCount, setExceptionCount] = useState(0);
   const [panel, setPanel] = useState(null); // { conceptId, decision } | null
 
+  // Independent filters — patient-deep-link (from the URL, e.g. arriving via
+  // Patient Detail's "N concepts pending review" callout), free-text concept
+  // name search, category dropdown, and a confidence % range. All combine
+  // with AND, so e.g. a patient deep-link plus a search term narrows further.
+  const [searchParams, setSearchParams] = useSearchParams();
+  const patientFilterId = searchParams.get("patient");
+  const [searchText, setSearchText] = useState("");
+  const [categoryFilter, setCategoryFilter] = useState("");
+  const [confidenceMin, setConfidenceMin] = useState(0);
+  const [confidenceMax, setConfidenceMax] = useState(100);
+
+  function clearPatientFilter() {
+    setSearchParams((prev) => {
+      const next = new URLSearchParams(prev);
+      next.delete("patient");
+      return next;
+    });
+  }
+
   useEffect(() => {
     getNeedsReviewConcepts()
       .then(setConcepts)
@@ -288,6 +307,40 @@ function ConceptReviewTab() {
     return Array.from(map.values());
   }, [concepts]);
 
+  // Distinct categories actually present in the queue right now — options
+  // are always drawn from the full unfiltered `groups`, not the narrowed
+  // result, so picking a category never removes other categories from the
+  // dropdown out from under the user.
+  const categories = useMemo(() => {
+    return [...new Set(groups.map((g) => g.category).filter(Boolean))].sort();
+  }, [groups]);
+
+  // Resolved from the queue data itself (no extra API call) — the first
+  // matching patient's name found across any group.
+  const patientFilterName = useMemo(() => {
+    if (!patientFilterId) return null;
+    for (const g of groups) {
+      const match = g.patients.find((p) => p.patient_id === patientFilterId);
+      if (match) return `${match.patient_first_name} ${match.patient_last_name}`;
+    }
+    return null;
+  }, [groups, patientFilterId]);
+
+  // All filters combine with AND.
+  const filteredGroups = useMemo(() => {
+    const term = searchText.trim().toLowerCase();
+    return groups.filter((g) => {
+      if (patientFilterId && !g.patients.some((p) => p.patient_id === patientFilterId)) return false;
+      if (term && !g.concept_name.toLowerCase().includes(term)) return false;
+      if (categoryFilter && g.category !== categoryFilter) return false;
+      if (g.confidence != null) {
+        const pct = g.confidence * 100;
+        if (pct < confidenceMin || pct > confidenceMax) return false;
+      }
+      return true;
+    });
+  }, [groups, patientFilterId, searchText, categoryFilter, confidenceMin, confidenceMax]);
+
   // Derived live from `groups` rather than snapshotted at open time, so a
   // patient flagged as an exception from inside the panel disappears from
   // the checkbox list immediately instead of lingering until reopened.
@@ -306,17 +359,75 @@ function ConceptReviewTab() {
     <section className="data-section full-width">
       <div className="section-head">
         <h3>Concepts needing review</h3>
-        <span className="count-chip">{groups.length}</span>
+        <span className="count-chip">Showing {filteredGroups.length} of {groups.length} concepts</span>
       </div>
       {exceptionCount > 0 && (
         <p className="no-data exception-summary">
           {exceptionCount} flagged as patient-specific exceptions
         </p>
       )}
+
+      {patientFilterId && (
+        <div className="concept-patient-filter-banner">
+          <span>Showing concepts for <strong>{patientFilterName || "selected patient"}</strong></span>
+          <button type="button" className="exception-link-btn" onClick={clearPatientFilter}>
+            Clear filter
+          </button>
+        </div>
+      )}
+
+      <div className="concept-filter-bar">
+        <input
+          type="text"
+          className="search-input concept-filter-search"
+          placeholder="Search concept name..."
+          value={searchText}
+          onChange={(e) => setSearchText(e.target.value)}
+        />
+        <select
+          className="concept-filter-select"
+          value={categoryFilter}
+          onChange={(e) => setCategoryFilter(e.target.value)}
+          aria-label="Filter by category"
+        >
+          <option value="">All categories</option>
+          {categories.map((c) => <option key={c} value={c}>{c}</option>)}
+        </select>
+        <div className="concept-filter-confidence">
+          <label>
+            Min confidence
+            <input
+              type="number"
+              min={0}
+              max={100}
+              value={confidenceMin}
+              onChange={(e) => setConfidenceMin(Number(e.target.value))}
+            />
+          </label>
+          <span className="concept-filter-confidence-sep">–</span>
+          <label>
+            Max confidence
+            <input
+              type="number"
+              min={0}
+              max={100}
+              value={confidenceMax}
+              onChange={(e) => setConfidenceMax(Number(e.target.value))}
+            />
+          </label>
+        </div>
+      </div>
+
       <div className="item-list">
-        {groups.length === 0
-          ? <p className="no-data">No concepts pending review — queue is empty.</p>
-          : groups.map((g) => (
+        {filteredGroups.length === 0
+          ? (
+            <p className="no-data">
+              {groups.length === 0
+                ? "No concepts pending review — queue is empty."
+                : "No concepts match the current filters."}
+            </p>
+          )
+          : filteredGroups.map((g) => (
             <ConceptGroupCard
               key={g.concept_id}
               group={g}
@@ -603,7 +714,7 @@ function DataQualityReviewTab({ highlightConceptId }) {
 }
 
 const TABS = [
-  { key: "concepts", label: "Concept Review" },
+  { key: "concept-review", label: "Concept Review" },
   { key: "duplicates", label: "Duplicate Review" },
   { key: "data-quality", label: "Data Quality Review" },
 ];
@@ -613,7 +724,7 @@ export default function AdminReview() {
   const requestedTab = searchParams.get("tab");
   const highlightConceptId = searchParams.get("concept");
   const [tab, setTab] = useState(
-    TABS.some((t) => t.key === requestedTab) ? requestedTab : "concepts"
+    TABS.some((t) => t.key === requestedTab) ? requestedTab : "concept-review"
   );
 
   return (
@@ -641,7 +752,7 @@ export default function AdminReview() {
       </div>
 
       <div className="tab-panel">
-        {tab === "concepts" && <ConceptReviewTab />}
+        {tab === "concept-review" && <ConceptReviewTab />}
         {tab === "duplicates" && <DuplicateReviewTab />}
         {tab === "data-quality" && <DataQualityReviewTab highlightConceptId={highlightConceptId} />}
       </div>

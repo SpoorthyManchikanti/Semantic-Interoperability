@@ -45,7 +45,7 @@ PROFILE_CACHE_HOURS = 24
 
 def _fetch_patient_concepts(conn, patient_id):
     return conn.execute(text("""
-        SELECT con.concept_name, con.source_type, con.category, con.confidence,
+        SELECT con.concept_name, con.source_type, con.category, con.subcategory, con.confidence,
                con.omop_standard_name, con.omop_concept_id, con.needs_review
         FROM patient_concepts pc
         JOIN concepts con ON con.concept_id = pc.concept_id
@@ -112,7 +112,16 @@ def _compute_risk_flags(concepts_rows, duplicate_matches):
     them as read-only context; the final stored risk_flags always come from
     here, not from the LLM's JSON, so counts/names can't drift)."""
     flags = []
-    needs_review_count = sum(1 for r in concepts_rows if r.needs_review)
+    # Same exclusion GET /concepts/needs-review applies: the 'Unknown'
+    # fallback (category='General', subcategory='Unknown / Invalid Concept')
+    # means the source data was missing/invalid, not a genuine classification
+    # call for a human to weigh in on — so it shouldn't inflate this count.
+    # Keeping this in sync with that endpoint is what makes clicking through
+    # from this flag to Admin Review's filtered view land on a matching count.
+    needs_review_count = sum(
+        1 for r in concepts_rows
+        if r.needs_review and not (r.category == "General" and r.subcategory == "Unknown / Invalid Concept")
+    )
     if needs_review_count > 0:
         flags.append({
             "type": "needs_review",

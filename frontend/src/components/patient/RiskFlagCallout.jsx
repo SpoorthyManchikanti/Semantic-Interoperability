@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { getPatientRiskFlags } from "../../api";
 
 function flagText(flag) {
@@ -13,6 +14,7 @@ function flagText(flag) {
 
 export default function RiskFlagCallout({ patientId }) {
   const [flags, setFlags] = useState([]);
+  const navigate = useNavigate();
 
   useEffect(() => {
     setFlags([]);
@@ -23,12 +25,28 @@ export default function RiskFlagCallout({ patientId }) {
 
   return (
     <div className="risk-flag-callout" role="status">
-      {flags.map((flag, i) => (
-        <div key={i} className="risk-flag-row">
-          <span className="risk-flag-icon">&#9888;</span>
-          <span className="risk-flag-text">{flagText(flag)}</span>
-        </div>
-      ))}
+      {flags.map((flag, i) => {
+        const content = (
+          <>
+            <span className="risk-flag-icon">&#9888;</span>
+            <span className="risk-flag-text">{flagText(flag)}</span>
+          </>
+        );
+        // Only the needs_review flag deep-links — it's the only one with a
+        // corresponding filterable view (Admin Review's Concept Review tab).
+        return flag.type === "needs_review" ? (
+          <button
+            key={i}
+            type="button"
+            className="risk-flag-row risk-flag-clickable"
+            onClick={() => navigate(`/admin?tab=concept-review&patient=${patientId}`)}
+          >
+            {content}
+          </button>
+        ) : (
+          <div key={i} className="risk-flag-row">{content}</div>
+        );
+      })}
     </div>
   );
 }

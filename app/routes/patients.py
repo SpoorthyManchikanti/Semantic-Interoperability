@@ -3,20 +3,60 @@
 from fastapi import APIRouter, HTTPException
 from sqlalchemy import text
 from app.database import engine
+from app.routes.concepts import DEMO_SUBSET_PATIENT_IDS
+from scripts.load_to_neo4j import SYNTHETIC_CLONE_IDS
 
 router = APIRouter(prefix="/patients", tags=["patients"])
 
 
-@router.get("/")
-def list_patients(limit: int = 10, offset: int = 0):
-    """List all patients."""
+def _demo_subset_ids():
+    """Live union of the two existing demo-subset sources — never a
+    hardcoded list of our own: concepts.py's DEMO_SUBSET_PATIENT_IDS (the
+    15 original demo patients + anyone appended by register_ingested_patient
+    on a real /ingest run — the exact same list Admin Review filters on)
+    plus load_to_neo4j.py's SYNTHETIC_CLONE_IDS (the 3 synthetic duplicate
+    patients, tracked separately since they exist only for the identity-
+    resolution demo). Both are references to live module-level objects, so
+    this reflects additions to either immediately, with no snapshot/cache."""
+    return list(DEMO_SUBSET_PATIENT_IDS) + list(SYNTHETIC_CLONE_IDS)
+
+
+@router.get("/demo-subset")
+def list_demo_subset_patients():
+    """Patients to pin at the top of Patient Search's default (no-query)
+    list — see _demo_subset_ids() for what's included and why."""
     with engine.connect() as conn:
-        result = conn.execute(text("""
+        rows = conn.execute(text("""
             SELECT patient_id, first_name, last_name, gender, birth_date
             FROM patients
+            WHERE patient_id = ANY(:ids)
             ORDER BY last_name, first_name
-            LIMIT :limit OFFSET :offset
-        """), {"limit": limit, "offset": offset})
+        """), {"ids": _demo_subset_ids()}).fetchall()
+        return [dict(row._mapping) for row in rows]
+
+
+@router.get("/")
+def list_patients(limit: int = 10, offset: int = 0, exclude_demo_subset: bool = False):
+    """List all patients. exclude_demo_subset=True drops anyone returned by
+    GET /patients/demo-subset, so Patient Search's default view can show
+    the pinned demo section and the "All Patients" section below it with
+    no overlap."""
+    with engine.connect() as conn:
+        if exclude_demo_subset:
+            result = conn.execute(text("""
+                SELECT patient_id, first_name, last_name, gender, birth_date
+                FROM patients
+                WHERE patient_id != ALL(:ids)
+                ORDER BY last_name, first_name
+                LIMIT :limit OFFSET :offset
+            """), {"ids": _demo_subset_ids(), "limit": limit, "offset": offset})
+        else:
+            result = conn.execute(text("""
+                SELECT patient_id, first_name, last_name, gender, birth_date
+                FROM patients
+                ORDER BY last_name, first_name
+                LIMIT :limit OFFSET :offset
+            """), {"limit": limit, "offset": offset})
         return [dict(row._mapping) for row in result.fetchall()]
 
 

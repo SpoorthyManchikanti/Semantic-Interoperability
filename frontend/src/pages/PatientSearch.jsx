@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
-import { searchPatients, listPatients, getPatient } from "../api";
+import { searchPatients, listPatients, getDemoSubsetPatients, getPatient } from "../api";
 import { buildConceptList } from "../lib/deriveConcepts";
 import { useResizableWidth } from "../lib/useResizableWidth";
 import "./PatientSearch.css";
@@ -63,39 +63,71 @@ function SearchResults({ q, selected, onSelect }) {
   );
 }
 
-// Shown until the user searches — first 20 patients by name, via the same
-// GET /patients/ listing endpoint the rest of the app uses, so this page
-// never opens to a blank results area.
+// Shown until the user searches. Two sections: demo-subset patients (the
+// live list Admin Review also uses — 15 original demo patients, 3 synthetic
+// clones, plus anyone ingested live via /ingest, appended automatically by
+// register_ingested_patient — see GET /patients/demo-subset) pinned at the
+// top, then the first 20 remaining patients by name below. Never a blank
+// results area, and the pinned section updates itself with zero code
+// changes as new patients are ingested.
 function DefaultPatientList({ selected, onSelect }) {
+  const [demoPatients, setDemoPatients] = useState(null);
+  const [demoError, setDemoError] = useState(null);
   const [patients, setPatients] = useState(null);
   const [error, setError] = useState(null);
 
   useEffect(() => {
-    listPatients(DEFAULT_LIST_LIMIT, 0)
+    getDemoSubsetPatients()
+      .then(setDemoPatients)
+      .catch((err) => setDemoError(err.message || "Failed to load demo patients"));
+  }, []);
+
+  useEffect(() => {
+    listPatients(DEFAULT_LIST_LIMIT, 0, true)
       .then(setPatients)
       .catch((err) => setError(err.message || "Failed to load patients"));
   }, []);
 
-  if (error) return <div className="error-box" role="alert"><span className="error-msg">{error}</span></div>;
-  if (!patients) return <p className="no-data">Loading patients…</p>;
-
   return (
-    <section className="data-section full-width">
-      <div className="section-head">
-        <h3>All patients</h3>
-        <span className="count-chip">{patients.length}</span>
-      </div>
-      <div className="item-list patient-result-list">
-        {patients.map((p) => (
-          <PatientRow
-            key={p.patient_id}
-            patient={p}
-            active={selected?.patient_id === p.patient_id}
-            onSelect={onSelect}
-          />
-        ))}
-      </div>
-    </section>
+    <div className="patient-default-list">
+      <section className="data-section full-width">
+        <div className="section-head">
+          <h3>Demo Patients</h3>
+          {demoPatients && <span className="count-chip">{demoPatients.length}</span>}
+        </div>
+        <div className="item-list patient-result-list">
+          {demoError && <div className="error-box" role="alert"><span className="error-msg">{demoError}</span></div>}
+          {!demoPatients && !demoError && <p className="no-data">Loading demo patients…</p>}
+          {demoPatients && demoPatients.map((p) => (
+            <PatientRow
+              key={p.patient_id}
+              patient={p}
+              active={selected?.patient_id === p.patient_id}
+              onSelect={onSelect}
+            />
+          ))}
+        </div>
+      </section>
+
+      <section className="data-section full-width">
+        <div className="section-head">
+          <h3>All Patients</h3>
+          {patients && <span className="count-chip">{patients.length}</span>}
+        </div>
+        <div className="item-list patient-result-list">
+          {error && <div className="error-box" role="alert"><span className="error-msg">{error}</span></div>}
+          {!patients && !error && <p className="no-data">Loading patients…</p>}
+          {patients && patients.map((p) => (
+            <PatientRow
+              key={p.patient_id}
+              patient={p}
+              active={selected?.patient_id === p.patient_id}
+              onSelect={onSelect}
+            />
+          ))}
+        </div>
+      </section>
+    </div>
   );
 }
 

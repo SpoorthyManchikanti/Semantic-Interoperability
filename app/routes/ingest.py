@@ -597,12 +597,15 @@ def rollback_batch(batch_id: str):
     there is no way to accidentally roll back anything but a real /ingest run.
 
     Deletes, in dependency order: concept_relationships, patient_matches,
-    patient_concepts, conditions/medications/observations, the patient row
-    itself, the ingested_files row, any concept left with zero remaining
-    patient_concepts links (plus its processing_status row, so it will be
-    treated as genuinely new if re-ingested), the Neo4j Patient node, this
-    patient's Admin Review subset-list entry, the uploaded source file, and
-    the in-memory job entry (batch_id doubles as job_id).
+    patient_concepts, conditions/medications/observations, patient_profiles
+    (the cached AI summary/risk-flags — without this, a rolled-back patient
+    left a stale profile row behind that GET /patients/{id}/risk-flags would
+    keep serving even after the patient itself no longer existed), the
+    patient row itself, the ingested_files row, any concept left with zero
+    remaining patient_concepts links (plus its processing_status row, so it
+    will be treated as genuinely new if re-ingested), the Neo4j Patient node,
+    this patient's Admin Review subset-list entry, the uploaded source file,
+    and the in-memory job entry (batch_id doubles as job_id).
     """
     try:
         uuid.UUID(batch_id)
@@ -650,6 +653,9 @@ def rollback_batch(batch_id: str):
         conn.execute(text("DELETE FROM conditions WHERE patient_id = ANY(:pids)"), {"pids": patient_ids})
         conn.execute(text("DELETE FROM medications WHERE patient_id = ANY(:pids)"), {"pids": patient_ids})
         conn.execute(text("DELETE FROM observations WHERE patient_id = ANY(:pids)"), {"pids": patient_ids})
+        profiles_count = conn.execute(text(
+            "DELETE FROM patient_profiles WHERE patient_id = ANY(:pids)"
+        ), {"pids": patient_ids}).rowcount
         conn.execute(text("DELETE FROM patients WHERE patient_id = ANY(:pids)"), {"pids": patient_ids})
 
         if orphaned_ids:
@@ -693,6 +699,7 @@ def rollback_batch(batch_id: str):
         "concept_relationships_deleted": rel_count,
         "patient_matches_deleted": match_count,
         "patient_concepts_deleted": pc_count,
+        "patient_profiles_deleted": profiles_count,
         "ingested_files_deleted": [r.filename for r in files_deleted],
         "neo4j_nodes_deleted": neo4j_nodes_deleted,
         "uploaded_files_removed": uploaded_files_removed,
